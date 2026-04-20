@@ -7,24 +7,29 @@ import Dialog from '@mui/material/Dialog'
 import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
 import Fab from '@mui/material/Fab'
+import FormControl from '@mui/material/FormControl'
 import Grid from '@mui/material/Grid'
+import IconButton from '@mui/material/IconButton'
+import InputLabel from '@mui/material/InputLabel'
+import InputAdornment from '@mui/material/InputAdornment'
+import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
+import Select from '@mui/material/Select'
 import Stack from '@mui/material/Stack'
+import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useNavigate } from 'react-router-dom'
 import BoxCard from '../components/BoxCard'
 import BoxForm from '../components/BoxForm'
-import BoxSearch from '../components/BoxSearch'
-import ContentSearch from '../components/ContentSearch'
 import BoxDetails from './BoxDetails'
 import { supabase } from '../lib/supabaseClient'
 
 function Home() {
   const isDesktop = useMediaQuery('(min-width:900px)')
   const navigate = useNavigate()
-  const [boxSearch, setBoxSearch] = useState('')
-  const [contentSearch, setContentSearch] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterInsert, setFilterInsert] = useState('')
   const [boxes, setBoxes] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -86,15 +91,172 @@ function Home() {
     handleCloseForm()
   }
 
+  const clearAllFilters = () => {
+    setSearchTerm('')
+    setFilterInsert('')
+  }
+
+  const applyFilterPrefix = (prefix) => {
+    const trimmed = searchTerm.trim()
+
+    if (!trimmed) {
+      setSearchTerm(`${prefix}:`)
+      return
+    }
+
+    if (trimmed.endsWith(':')) {
+      setSearchTerm(`${trimmed} `)
+      return
+    }
+
+    setSearchTerm(`${trimmed} ${prefix}:`)
+  }
+
+  const parseSearchQuery = (rawSearch) => {
+    const normalized = rawSearch.trim()
+
+    if (!normalized) {
+      return { filters: [], freeText: '' }
+    }
+
+    const prefixMap = {
+      box: 'box_number',
+      box_number: 'box_number',
+      room: 'room',
+      label: 'label',
+      content: 'content',
+      tag: 'tag',
+    }
+
+    const tokenRegex = /\b(box|box_number|room|label|content|tag)\s*:\s*("[^"]+"|\S+)/gi
+    const filters = []
+    const tokenMatches = [...normalized.matchAll(tokenRegex)]
+
+    tokenMatches.forEach((match) => {
+      const rawKey = (match[1] || '').toLowerCase()
+      const mappedType = prefixMap[rawKey]
+      const rawValue = (match[2] || '').trim()
+      const unquotedValue = rawValue.replace(/^"|"$/g, '').trim()
+
+      if (!mappedType || !unquotedValue) {
+        return
+      }
+
+      filters.push({ type: mappedType, term: unquotedValue })
+    })
+
+    const freeText = normalized.replace(tokenRegex, '').replace(/\s+/g, ' ').trim()
+
+    return { filters, freeText }
+  }
+
+  const queryBoxIdsByFilter = async (type, term) => {
+    if (type === 'content') {
+      const { data, error: itemError } = await supabase
+        .from('box_items')
+        .select('box_id')
+        .ilike('content', `%${term}%`)
+
+      if (itemError) {
+        throw itemError
+      }
+
+      return [...new Set((data || []).map((row) => row.box_id))]
+    }
+
+    if (type === 'tag') {
+      const { data, error: tagError } = await supabase
+        .from('box_tags')
+        .select('box_id')
+        .ilike('tag', `%${term}%`)
+
+      if (tagError) {
+        throw tagError
+      }
+
+      return [...new Set((data || []).map((row) => row.box_id))]
+    }
+
+    const { data, error: boxError } = await supabase
+      .from('boxes')
+      .select('id')
+      .ilike(type, `%${term}%`)
+
+    if (boxError) {
+      throw boxError
+    }
+
+    return [...new Set((data || []).map((row) => row.id))]
+  }
+
+  const queryBoxIdsByFreeText = async (term) => {
+    const combinedById = new Set()
+
+    const { data: boxNumberMatches, error: boxNumberError } = await supabase
+      .from('boxes')
+      .select('id')
+      .ilike('box_number', `%${term}%`)
+
+    if (boxNumberError) {
+      throw boxNumberError
+    }
+
+    const { data: roomMatches, error: roomError } = await supabase
+      .from('boxes')
+      .select('id')
+      .ilike('room', `%${term}%`)
+
+    if (roomError) {
+      throw roomError
+    }
+
+    const { data: labelMatches, error: labelError } = await supabase
+      .from('boxes')
+      .select('id')
+      .ilike('label', `%${term}%`)
+
+    if (labelError) {
+      throw labelError
+    }
+
+    ;[...(boxNumberMatches || []), ...(roomMatches || []), ...(labelMatches || [])].forEach((row) => {
+      combinedById.add(row.id)
+    })
+
+    const { data: matchedItems, error: itemError } = await supabase
+      .from('box_items')
+      .select('box_id')
+      .ilike('content', `%${term}%`)
+
+    if (itemError) {
+      throw itemError
+    }
+
+    const { data: matchedTags, error: tagError } = await supabase
+      .from('box_tags')
+      .select('box_id')
+      .ilike('tag', `%${term}%`)
+
+    if (tagError) {
+      throw tagError
+    }
+
+    ;[...(matchedItems || []), ...(matchedTags || [])].forEach((row) => {
+      combinedById.add(row.box_id)
+    })
+
+    return [...combinedById]
+  }
+
   const fetchBoxes = useCallback(async () => {
     setLoading(true)
     setError('')
 
     try {
-      const boxTerm = boxSearch.trim()
-      const contentTerm = contentSearch.trim()
+      const { filters, freeText } = parseSearchQuery(searchTerm)
+      const hasQuery = filters.length > 0 || Boolean(freeText)
 
-      if (!boxTerm && !contentTerm) {
+      if (!hasQuery) {
         const { data, error: listError } = await supabase
           .from('boxes')
           .select('*')
@@ -109,68 +271,60 @@ function Home() {
         return
       }
 
-      let boxResults = null
-      if (boxTerm) {
-        const { data, error: boxError } = await supabase
-          .from('boxes')
-          .select('*')
-          .ilike('box_number', `%${boxTerm}%`)
-          .order('box_number', { ascending: true })
+      let candidateIds = null
 
-        if (boxError) {
-          throw boxError
-        }
+      for (const filter of filters) {
+        const filterIds = await queryBoxIdsByFilter(filter.type, filter.term)
+        const nextSet = new Set(filterIds)
 
-        boxResults = data || []
-      }
-
-      let contentResults = null
-      if (contentTerm) {
-        const { data: matchedItems, error: itemError } = await supabase
-          .from('box_items')
-          .select('box_id')
-          .ilike('content', `%${contentTerm}%`)
-
-        if (itemError) {
-          throw itemError
-        }
-
-        const uniqueBoxIds = [...new Set((matchedItems || []).map((item) => item.box_id))]
-
-        if (uniqueBoxIds.length === 0) {
-          contentResults = []
+        if (candidateIds === null) {
+          candidateIds = nextSet
         } else {
-          const { data: matchedBoxes, error: matchedBoxError } = await supabase
-            .from('boxes')
-            .select('*')
-            .in('id', uniqueBoxIds)
-            .order('box_number', { ascending: true })
+          candidateIds = new Set([...candidateIds].filter((id) => nextSet.has(id)))
+        }
 
-          if (matchedBoxError) {
-            throw matchedBoxError
-          }
-
-          contentResults = matchedBoxes || []
+        if (candidateIds.size === 0) {
+          setBoxes([])
+          return
         }
       }
 
-      if (boxResults && contentResults) {
-        const contentIds = new Set(contentResults.map((box) => box.id))
-        const combinedResults = boxResults.filter((box) => contentIds.has(box.id))
-        const boxesWithTags = await attachTagsToBoxes(combinedResults)
-        setBoxes(boxesWithTags)
-      } else {
-        const finalResults = boxResults || contentResults || []
-        const boxesWithTags = await attachTagsToBoxes(finalResults)
-        setBoxes(boxesWithTags)
+      if (freeText) {
+        const freeTextIds = await queryBoxIdsByFreeText(freeText)
+        const freeTextSet = new Set(freeTextIds)
+
+        if (candidateIds === null) {
+          candidateIds = freeTextSet
+        } else {
+          candidateIds = new Set([...candidateIds].filter((id) => freeTextSet.has(id)))
+        }
       }
+
+      const finalIds = [...(candidateIds || [])]
+      if (finalIds.length === 0) {
+        setBoxes([])
+        return
+      }
+
+      const { data: matchedBoxes, error: matchedBoxError } = await supabase
+        .from('boxes')
+        .select('*')
+        .in('id', finalIds)
+        .order('box_number', { ascending: true })
+
+      if (matchedBoxError) {
+        throw matchedBoxError
+      }
+
+      const boxesWithTags = await attachTagsToBoxes(matchedBoxes || [])
+      setBoxes(boxesWithTags)
     } catch (fetchError) {
       setError(fetchError.message || 'Could not load boxes.')
       setBoxes([])
     } finally {
       setLoading(false)
     }
-  }, [attachTagsToBoxes, boxSearch, contentSearch])
+  }, [attachTagsToBoxes, searchTerm])
 
   useEffect(() => {
     fetchBoxes()
@@ -193,11 +347,57 @@ function Home() {
             Search boxes
           </Typography>
           <Grid container spacing={1.5}>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <BoxSearch value={boxSearch} onChange={setBoxSearch} />
+
+            <Grid size={{ xs: 12, md: 8 }}>
+              <TextField
+                id="search-term"
+                label="Search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search by room, tag, or content"
+                fullWidth
+                size="small"
+                slotProps={{
+                  input: {
+                    endAdornment: searchTerm ? (
+                      <InputAdornment position="end">
+                        <IconButton
+                          size="small"
+                          aria-label="Clear all filters"
+                          onClick={clearAllFilters}
+                          edge="end"
+                        >
+                          x
+                        </IconButton>
+                      </InputAdornment>
+                    ) : null,
+                  },
+                }}
+              />
             </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <ContentSearch value={contentSearch} onChange={setContentSearch} />
+                        <Grid size={{ xs: 12, md: 4 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel id="add-filter-label">Filters</InputLabel>
+                <Select
+                  labelId="add-filter-label"
+                  id="add-filter"
+                  value={filterInsert}
+                  label="Filters"
+                  onChange={(event) => {
+                    const selected = event.target.value
+                    if (selected) {
+                      applyFilterPrefix(selected)
+                    }
+                    setFilterInsert('')
+                  }}
+                >
+                  <MenuItem value="box">Box number</MenuItem>
+                  <MenuItem value="room">Room</MenuItem>
+                  <MenuItem value="label">Label</MenuItem>
+                  <MenuItem value="content">Content</MenuItem>
+                  <MenuItem value="tag">Tag</MenuItem>
+                </Select>
+              </FormControl>
             </Grid>
           </Grid>
         </Paper>
