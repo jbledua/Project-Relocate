@@ -20,8 +20,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
 
     steps:
       - name: Checkout
@@ -35,6 +35,25 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate required Vite env vars
+        shell: bash
+        run: |
+          missing=0
+
+          if [[ -z "$VITE_SUPABASE_URL" ]]; then
+            echo "Missing VITE_SUPABASE_URL. Add it as a repository Variable or Secret."
+            missing=1
+          fi
+
+          if [[ -z "$VITE_SUPABASE_ANON_KEY" ]]; then
+            echo "Missing VITE_SUPABASE_ANON_KEY. Add it as a repository Variable or Secret."
+            missing=1
+          fi
+
+          if [[ "$missing" -eq 1 ]]; then
+            exit 1
+          fi
 
       - name: Build
         shell: bash
