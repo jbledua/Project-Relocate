@@ -1,4 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
+import Alert from '@mui/material/Alert'
+import Box from '@mui/material/Box'
+import CircularProgress from '@mui/material/CircularProgress'
+import Container from '@mui/material/Container'
+import Grid from '@mui/material/Grid'
+import Paper from '@mui/material/Paper'
+import Stack from '@mui/material/Stack'
+import Typography from '@mui/material/Typography'
 import BoxCard from '../components/BoxCard'
 import BoxForm from '../components/BoxForm'
 import BoxSearch from '../components/BoxSearch'
@@ -98,38 +106,63 @@ function Home() {
   }, [fetchBoxes])
 
   return (
-    <main className="app-layout">
-      <header>
-        <h1>Project-Relocate</h1>
-        <p>Track boxes, contents, and notes while moving.</p>
-      </header>
+    <Container maxWidth="md" sx={{ py: 3 }}>
+      <Stack spacing={2}>
+        <Box>
+          <Typography variant="h4" component="h1" gutterBottom>
+            Project-Relocate
+          </Typography>
+          <Typography color="text.secondary">
+            Track boxes, contents, and notes while moving.
+          </Typography>
+        </Box>
 
-      <BoxForm onCreated={fetchBoxes} />
+        <BoxForm onCreated={fetchBoxes} />
 
-      <section className="panel">
-        <h2>Search boxes</h2>
-        <div className="search-grid">
-          <BoxSearch value={boxSearch} onChange={setBoxSearch} />
-          <ContentSearch value={contentSearch} onChange={setContentSearch} />
-        </div>
-      </section>
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Typography variant="h6" component="h2" sx={{ mb: 2 }}>
+            Search boxes
+          </Typography>
+          <Grid container spacing={1.5}>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <BoxSearch value={boxSearch} onChange={setBoxSearch} />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <ContentSearch value={contentSearch} onChange={setContentSearch} />
+            </Grid>
+          </Grid>
+        </Paper>
 
-      <section className="panel">
-        <h2>Results</h2>
-        {loading ? <p>Loading boxes...</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Typography variant="h6" component="h2" sx={{ mb: 2 }}>
+            Results
+          </Typography>
 
-        {!loading && !error && boxes.length === 0 ? <p>No boxes found.</p> : null}
+          {loading ? (
+            <Stack direction="row" spacing={1} alignItems="center">
+              <CircularProgress size={20} />
+              <Typography>Loading boxes...</Typography>
+            </Stack>
+          ) : null}
 
-        {!loading && !error && boxes.length > 0 ? (
-          <div className="box-grid">
-            {boxes.map((box) => (
-              <BoxCard key={box.id} box={box} />
-            ))}
-          </div>
-        ) : null}
-      </section>
-    </main>
+          {error ? <Alert severity="error">{error}</Alert> : null}
+
+          {!loading && !error && boxes.length === 0 ? (
+            <Typography color="text.secondary">No boxes found.</Typography>
+          ) : null}
+
+          {!loading && !error && boxes.length > 0 ? (
+            <Grid container spacing={1.5}>
+              {boxes.map((box) => (
+                <Grid key={box.id} size={{ xs: 12, sm: 6, md: 4 }}>
+                  <BoxCard box={box} />
+                </Grid>
+              ))}
+            </Grid>
+          ) : null}
+        </Paper>
+      </Stack>
+    </Container>
   )
 }
 

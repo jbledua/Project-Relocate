@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import Alert from '@mui/material/Alert'
+import Box from '@mui/material/Box'
+import CircularProgress from '@mui/material/CircularProgress'
+import Container from '@mui/material/Container'
+import MuiLink from '@mui/material/Link'
+import List from '@mui/material/List'
+import ListItem from '@mui/material/ListItem'
+import Paper from '@mui/material/Paper'
+import Stack from '@mui/material/Stack'
+import Typography from '@mui/material/Typography'
+import { Link as RouterLink, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 
 function BoxDetails() {
@@ -48,59 +58,97 @@ function BoxDetails() {
   }, [boxId])
 
   if (loading) {
-    return <p>Loading box details...</p>
+    return (
+      <Container maxWidth="sm" sx={{ py: 3 }}>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <CircularProgress size={20} />
+          <Typography>Loading box details...</Typography>
+        </Stack>
+      </Container>
+    )
   }
 
   if (error) {
     return (
-      <section className="panel">
-        <p className="error">{error}</p>
-        <Link to="/">Back to home</Link>
-      </section>
+      <Container maxWidth="sm" sx={{ py: 3 }}>
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Stack spacing={1.5}>
+            <Alert severity="error">{error}</Alert>
+            <MuiLink component={RouterLink} to="/" underline="hover">
+              Back to home
+            </MuiLink>
+          </Stack>
+        </Paper>
+      </Container>
     )
   }
 
   if (!box) {
     return (
-      <section className="panel">
-        <p>Box not found.</p>
-        <Link to="/">Back to home</Link>
-      </section>
+      <Container maxWidth="sm" sx={{ py: 3 }}>
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Stack spacing={1.5}>
+            <Typography>Box not found.</Typography>
+            <MuiLink component={RouterLink} to="/" underline="hover">
+              Back to home
+            </MuiLink>
+          </Stack>
+        </Paper>
+      </Container>
     )
   }
 
   return (
-    <section className="panel details-page">
-      <Link to="/">← Back to home</Link>
-      <h1>{box.box_number}</h1>
+    <Container maxWidth="sm" sx={{ py: 3 }}>
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Stack spacing={1.5}>
+          <MuiLink component={RouterLink} to="/" underline="hover">
+            Back to home
+          </MuiLink>
 
-      <p>
-        <strong>Room:</strong> {box.room || 'N/A'}
-      </p>
-      <p>
-        <strong>Label:</strong> {box.label || 'N/A'}
-      </p>
-      <p>
-        <strong>Notes:</strong> {box.notes || 'No notes'}
-      </p>
+          <Typography variant="h4" component="h1">
+            {box.box_number}
+          </Typography>
 
-      {box.photo_url ? (
-        <img src={box.photo_url} alt={`${box.box_number} reference`} className="box-photo" />
-      ) : (
-        <p>No photo uploaded yet.</p>
-      )}
+          <Typography>
+            <strong>Room:</strong> {box.room || 'N/A'}
+          </Typography>
+          <Typography>
+            <strong>Label:</strong> {box.label || 'N/A'}
+          </Typography>
+          <Typography>
+            <strong>Notes:</strong> {box.notes || 'No notes'}
+          </Typography>
 
-      <h2>Contents</h2>
-      {items.length === 0 ? (
-        <p>No contents listed.</p>
-      ) : (
-        <ul>
-          {items.map((item) => (
-            <li key={item.id}>{item.content}</li>
-          ))}
-        </ul>
-      )}
-    </section>
+          {box.photo_url ? (
+            <Box
+              component="img"
+              src={box.photo_url}
+              alt={`${box.box_number} reference`}
+              sx={{ width: '100%', maxWidth: 320, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+            />
+          ) : (
+            <Typography color="text.secondary">No photo uploaded yet.</Typography>
+          )}
+
+          <Typography variant="h6" component="h2">
+            Contents
+          </Typography>
+
+          {items.length === 0 ? (
+            <Typography color="text.secondary">No contents listed.</Typography>
+          ) : (
+            <List dense sx={{ p: 0 }}>
+              {items.map((item) => (
+                <ListItem key={item.id} sx={{ px: 0 }}>
+                  {item.content}
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </Stack>
+      </Paper>
+    </Container>
   )
 }
 

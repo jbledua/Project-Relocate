@@ -1,4 +1,10 @@
 import { useState } from 'react'
+import Alert from '@mui/material/Alert'
+import Button from '@mui/material/Button'
+import Paper from '@mui/material/Paper'
+import Stack from '@mui/material/Stack'
+import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
 import { supabase } from '../lib/supabaseClient'
 
 const initialForm = {
@@ -73,68 +79,72 @@ function BoxForm({ onCreated }) {
   }
 
   return (
-    <section className="panel">
-      <h2>Add box</h2>
-      <form onSubmit={handleSubmit} className="box-form">
-        <div className="input-group">
-          <label htmlFor="box-number">Box number</label>
-          <input
-            id="box-number"
-            value={formData.boxNumber}
-            onChange={handleChange('boxNumber')}
-            placeholder="BX-001"
-            required
-          />
-        </div>
+    <Paper variant="outlined" sx={{ p: 2 }}>
+      <Typography variant="h6" component="h2" sx={{ mb: 2 }}>
+        Add box
+      </Typography>
 
-        <div className="input-group">
-          <label htmlFor="room">Room</label>
-          <input
-            id="room"
-            value={formData.room}
-            onChange={handleChange('room')}
-            placeholder="Main bedroom"
-          />
-        </div>
+      <Stack component="form" onSubmit={handleSubmit} spacing={1.5}>
+        <TextField
+          id="box-number"
+          label="Box number"
+          value={formData.boxNumber}
+          onChange={handleChange('boxNumber')}
+          placeholder="BX-001"
+          required
+          fullWidth
+          size="small"
+        />
 
-        <div className="input-group">
-          <label htmlFor="label">Label</label>
-          <input
-            id="label"
-            value={formData.label}
-            onChange={handleChange('label')}
-            placeholder="Winter clothing"
-          />
-        </div>
+        <TextField
+          id="room"
+          label="Room"
+          value={formData.room}
+          onChange={handleChange('room')}
+          placeholder="Main bedroom"
+          fullWidth
+          size="small"
+        />
 
-        <div className="input-group">
-          <label htmlFor="notes">Notes</label>
-          <textarea
-            id="notes"
-            value={formData.notes}
-            onChange={handleChange('notes')}
-            rows={3}
-            placeholder="Any handling notes"
-          />
-        </div>
+        <TextField
+          id="label"
+          label="Label"
+          value={formData.label}
+          onChange={handleChange('label')}
+          placeholder="Winter clothing"
+          fullWidth
+          size="small"
+        />
 
-        <div className="input-group">
-          <label htmlFor="contents">Contents (comma separated)</label>
-          <input
-            id="contents"
-            value={formData.contentsText}
-            onChange={handleChange('contentsText')}
-            placeholder="jacket, gloves, shoes"
-          />
-        </div>
+        <TextField
+          id="notes"
+          label="Notes"
+          value={formData.notes}
+          onChange={handleChange('notes')}
+          rows={3}
+          placeholder="Any handling notes"
+          fullWidth
+          multiline
+          size="small"
+        />
 
-        {error ? <p className="error">{error}</p> : null}
+        <TextField
+          id="contents"
+          label="Contents (comma separated)"
+          value={formData.contentsText}
+          onChange={handleChange('contentsText')}
+          placeholder="jacket, gloves, shoes"
+          fullWidth
+          size="small"
+        />
 
-        <button type="submit" disabled={isSubmitting}>
+        {error ? <Alert severity="error">{error}</Alert> : null}
+
+        <Button type="submit" variant="contained" disabled={isSubmitting}>
           {isSubmitting ? 'Saving...' : 'Save box'}
-        </button>
-      </form>
-    </section>
+        </Button>
+      </Stack>
+    </Paper>
   )
 }
 
