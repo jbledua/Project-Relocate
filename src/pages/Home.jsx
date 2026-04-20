@@ -3,6 +3,10 @@ import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import CircularProgress from '@mui/material/CircularProgress'
 import Container from '@mui/material/Container'
+import Dialog from '@mui/material/Dialog'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
+import Fab from '@mui/material/Fab'
 import Grid from '@mui/material/Grid'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
@@ -19,6 +23,49 @@ function Home() {
   const [boxes, setBoxes] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [isFormOpen, setIsFormOpen] = useState(false)
+
+  const attachTagsToBoxes = useCallback(async (boxList) => {
+    if (!boxList || boxList.length === 0) {
+      return []
+    }
+
+    const boxIds = boxList.map((box) => box.id)
+    const { data: tagRows, error: tagError } = await supabase
+      .from('box_tags')
+      .select('box_id, tag')
+      .in('box_id', boxIds)
+
+    if (tagError) {
+      throw tagError
+    }
+
+    const tagsByBoxId = (tagRows || []).reduce((acc, row) => {
+      if (!acc[row.box_id]) {
+        acc[row.box_id] = []
+      }
+      acc[row.box_id].push(row.tag)
+      return acc
+    }, {})
+
+    return boxList.map((box) => ({
+      ...box,
+      tags: tagsByBoxId[box.id] || [],
+    }))
+  }, [])
+
+  const handleOpenForm = () => {
+    setIsFormOpen(true)
+  }
+
+  const handleCloseForm = () => {
+    setIsFormOpen(false)
+  }
+
+  const handleBoxCreated = async () => {
+    await fetchBoxes()
+    handleCloseForm()
+  }
 
   const fetchBoxes = useCallback(async () => {
     setLoading(true)
@@ -38,7 +85,8 @@ function Home() {
           throw listError
         }
 
-        setBoxes(data || [])
+        const boxesWithTags = await attachTagsToBoxes(data || [])
+        setBoxes(boxesWithTags)
         return
       }
 
@@ -89,9 +137,13 @@ function Home() {
 
       if (boxResults && contentResults) {
         const contentIds = new Set(contentResults.map((box) => box.id))
-        setBoxes(boxResults.filter((box) => contentIds.has(box.id)))
+        const combinedResults = boxResults.filter((box) => contentIds.has(box.id))
+        const boxesWithTags = await attachTagsToBoxes(combinedResults)
+        setBoxes(boxesWithTags)
       } else {
-        setBoxes(boxResults || contentResults || [])
+        const finalResults = boxResults || contentResults || []
+        const boxesWithTags = await attachTagsToBoxes(finalResults)
+        setBoxes(boxesWithTags)
       }
     } catch (fetchError) {
       setError(fetchError.message || 'Could not load boxes.')
@@ -99,7 +151,7 @@ function Home() {
     } finally {
       setLoading(false)
     }
-  }, [boxSearch, contentSearch])
+  }, [attachTagsToBoxes, boxSearch, contentSearch])
 
   useEffect(() => {
     fetchBoxes()
@@ -116,8 +168,6 @@ function Home() {
             Track boxes, contents, and notes while moving.
           </Typography>
         </Box>
-
-        <BoxForm onCreated={fetchBoxes} />
 
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="h6" component="h2" sx={{ mb: 2 }}>
@@ -161,6 +211,22 @@ function Home() {
             </Grid>
           ) : null}
         </Paper>
+
+        <Fab
+          color="primary"
+          aria-label="add box"
+          onClick={handleOpenForm}
+          sx={{ position: 'fixed', right: 24, bottom: 24 }}
+        >
+          +
+        </Fab>
+
+        <Dialog open={isFormOpen} onClose={handleCloseForm} fullWidth maxWidth="sm">
+          <DialogTitle>Add a box</DialogTitle>
+          <DialogContent>
+            <BoxForm onCreated={handleBoxCreated} />
+          </DialogContent>
+        </Dialog>
       </Stack>
     </Container>
   )

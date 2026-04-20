@@ -1,6 +1,8 @@
 import Card from '@mui/material/Card'
 import CardActionArea from '@mui/material/CardActionArea'
 import CardContent from '@mui/material/CardContent'
+import Chip from '@mui/material/Chip'
+import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { Link as RouterLink } from 'react-router-dom'
 
@@ -18,6 +20,14 @@ function BoxCard({ box }) {
           <Typography variant="body2" color="text.secondary">
             <strong>Label:</strong> {box.label || 'N/A'}
           </Typography>
+
+          {box.tags && box.tags.length > 0 ? (
+            <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+              {box.tags.map((tag) => (
+                <Chip key={`${box.id}-${tag}`} label={tag} size="small" />
+              ))}
+            </Stack>
+          ) : null}
         </CardContent>
       </CardActionArea>
     </Card>

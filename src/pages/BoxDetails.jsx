@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
+import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Container from '@mui/material/Container'
 import MuiLink from '@mui/material/Link'
@@ -16,6 +17,7 @@ function BoxDetails() {
   const { boxId } = useParams()
   const [box, setBox] = useState(null)
   const [items, setItems] = useState([])
+  const [tags, setTags] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -45,8 +47,19 @@ function BoxDetails() {
           throw itemError
         }
 
+        const { data: tagData, error: tagError } = await supabase
+          .from('box_tags')
+          .select('tag')
+          .eq('box_id', boxId)
+          .order('tag', { ascending: true })
+
+        if (tagError) {
+          throw tagError
+        }
+
         setBox(boxData)
         setItems(itemData || [])
+        setTags((tagData || []).map((tagRow) => tagRow.tag))
       } catch (fetchError) {
         setError(fetchError.message || 'Could not load box details.')
       } finally {
@@ -119,6 +132,14 @@ function BoxDetails() {
           <Typography>
             <strong>Notes:</strong> {box.notes || 'No notes'}
           </Typography>
+
+          {tags.length > 0 ? (
+            <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+              {tags.map((tag) => (
+                <Chip key={tag} label={tag} size="small" />
+              ))}
+            </Stack>
+          ) : null}
 
           {box.photo_url ? (
             <Box

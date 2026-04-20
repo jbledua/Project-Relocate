@@ -13,6 +13,7 @@ const initialForm = {
   label: '',
   notes: '',
   contentsText: '',
+  tagsText: '',
 }
 
 function BoxForm({ onCreated }) {
@@ -69,6 +70,26 @@ function BoxForm({ onCreated }) {
         }
       }
 
+      const tags = [...new Set(
+        formData.tagsText
+          .split(',')
+          .map((tag) => tag.trim().toLowerCase())
+          .filter(Boolean),
+      )]
+
+      if (tags.length > 0) {
+        const tagRows = tags.map((tag) => ({
+          box_id: newBox.id,
+          tag,
+        }))
+
+        const { error: tagError } = await supabase.from('box_tags').insert(tagRows)
+
+        if (tagError) {
+          throw tagError
+        }
+      }
+
       setFormData(initialForm)
       onCreated()
     } catch (submitError) {
@@ -117,27 +138,38 @@ function BoxForm({ onCreated }) {
         />
 
         <TextField
-          id="notes"
-          label="Notes"
-          value={formData.notes}
-          onChange={handleChange('notes')}
-          rows={3}
-          placeholder="Any handling notes"
-          fullWidth
-          multiline
-          size="small"
+            id="contents"
+            label="Contents (comma separated)"
+            value={formData.contentsText}
+            onChange={handleChange('contentsText')}
+            rows={4}
+            placeholder="jacket, gloves, shoes"
+            fullWidth
+            multiline
+            size="small"
         />
 
         <TextField
-          id="contents"
-          label="Contents (comma separated)"
-          value={formData.contentsText}
-          onChange={handleChange('contentsText')}
-          placeholder="jacket, gloves, shoes"
+          id="tags"
+          label="Tags (comma separated)"
+          value={formData.tagsText}
+          onChange={handleChange('tagsText')}
+          placeholder="fragile, heavy, do not stack"
+          helperText="Examples: fragile, heavy, do not stack"
           fullWidth
           size="small"
         />
-
+        <TextField
+            id="notes"
+            label="Notes"
+            value={formData.notes}
+            onChange={handleChange('notes')}
+            rows={2}
+            placeholder="Any handling notes"
+            fullWidth
+            multiline
+            size="small"
+        />
         {error ? <Alert severity="error">{error}</Alert> : null}
 
         <Button type="submit" variant="contained" disabled={isSubmitting}>

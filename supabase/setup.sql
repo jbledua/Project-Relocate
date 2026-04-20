@@ -23,15 +23,27 @@ create table if not exists public.box_items (
   created_at timestamptz not null default now()
 );
 
+-- Box tags table
+create table if not exists public.box_tags (
+  id uuid primary key default gen_random_uuid(),
+  box_id uuid not null references public.boxes(id) on delete cascade,
+  tag text not null,
+  created_at timestamptz not null default now(),
+  constraint box_tags_unique_box_tag unique (box_id, tag)
+);
+
 -- Helpful indexes for your current searches
 create index if not exists idx_boxes_box_number on public.boxes (box_number);
 create index if not exists idx_box_items_box_id on public.box_items (box_id);
 create index if not exists idx_box_items_content on public.box_items (content);
+create index if not exists idx_box_tags_box_id on public.box_tags (box_id);
+create index if not exists idx_box_tags_tag on public.box_tags (tag);
 
 -- Optional: turn on RLS and allow simple read/write for MVP.
 -- For production, replace these with authenticated user-based policies.
 alter table public.boxes enable row level security;
 alter table public.box_items enable row level security;
+alter table public.box_tags enable row level security;
 
 do $$
 begin
@@ -61,5 +73,19 @@ begin
     where schemaname = 'public' and tablename = 'box_items' and policyname = 'box_items_insert_all'
   ) then
     create policy box_items_insert_all on public.box_items for insert with check (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'box_tags' and policyname = 'box_tags_select_all'
+  ) then
+    create policy box_tags_select_all on public.box_tags for select using (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'box_tags' and policyname = 'box_tags_insert_all'
+  ) then
+    create policy box_tags_insert_all on public.box_tags for insert with check (true);
   end if;
 end $$;
