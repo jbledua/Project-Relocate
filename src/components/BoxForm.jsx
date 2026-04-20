@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Alert from '@mui/material/Alert'
+import Autocomplete from '@mui/material/Autocomplete'
 import Button from '@mui/material/Button'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
@@ -7,19 +8,80 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { supabase } from '../lib/supabaseClient'
 
+const defaultTagOptions = ['fragile', 'heavy', 'do not stack']
+
+const normalizeTagList = (tagList) => [...new Set(
+  (tagList || [])
+    .map((tag) => String(tag).trim().toLowerCase())
+    .filter(Boolean),
+)]
+
 const initialForm = {
   boxNumber: '',
   room: '',
-  label: '',
   notes: '',
   contentsText: '',
-  tagsText: '',
+  tags: [],
 }
 
 function BoxForm({ onCreated }) {
   const [formData, setFormData] = useState(initialForm)
+  const [roomOptions, setRoomOptions] = useState([])
+  const [tagOptions, setTagOptions] = useState(defaultTagOptions)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    let isActive = true
+
+    const fetchRoomOptions = async () => {
+      const { data, error: roomError } = await supabase
+        .from('boxes')
+        .select('room')
+        .not('room', 'is', null)
+
+      if (roomError) {
+        console.warn('Could not load room suggestions.', roomError.message)
+        return
+      }
+
+      const uniqueRooms = [...new Set(
+        (data || [])
+          .map((row) => (row.room || '').trim())
+          .filter(Boolean),
+      )].sort((a, b) => a.localeCompare(b))
+
+      if (isActive) {
+        setRoomOptions(uniqueRooms)
+      }
+    }
+
+    const fetchTagOptions = async () => {
+      const { data, error: tagError } = await supabase
+        .from('box_tags')
+        .select('tag')
+        .not('tag', 'is', null)
+
+      if (tagError) {
+        console.warn('Could not load tag suggestions.', tagError.message)
+        return
+      }
+
+      const existingTags = normalizeTagList((data || []).map((row) => row.tag))
+      const mergedTags = normalizeTagList([...defaultTagOptions, ...existingTags])
+
+      if (isActive) {
+        setTagOptions(mergedTags)
+      }
+    }
+
+    fetchRoomOptions()
+    fetchTagOptions()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   const handleChange = (field) => (event) => {
     setFormData((prev) => ({ ...prev, [field]: event.target.value }))
@@ -29,20 +91,30 @@ function BoxForm({ onCreated }) {
     event.preventDefault()
     setError('')
 
-    if (!formData.boxNumber.trim()) {
+    const normalizedBoxNumber = formData.boxNumber.trim()
+    const normalizedRoom = formData.room.trim()
+
+    if (!normalizedBoxNumber) {
       setError('Box number is required.')
+      return
+    }
+
+    if (!normalizedRoom) {
+      setError('Room is required.')
       return
     }
 
     setIsSubmitting(true)
 
     try {
+      const derivedLabel = `${normalizedBoxNumber}-${normalizedRoom}`
+
       const { data: newBox, error: boxError } = await supabase
         .from('boxes')
         .insert({
-          box_number: formData.boxNumber.trim(),
-          room: formData.room.trim() || null,
-          label: formData.label.trim() || null,
+          box_number: normalizedBoxNumber,
+          room: normalizedRoom || null,
+          label: derivedLabel,
           notes: formData.notes.trim() || null,
         })
         .select()
@@ -70,12 +142,7 @@ function BoxForm({ onCreated }) {
         }
       }
 
-      const tags = [...new Set(
-        formData.tagsText
-          .split(',')
-          .map((tag) => tag.trim().toLowerCase())
-          .filter(Boolean),
-      )]
+      const tags = normalizeTagList(formData.tags)
 
       if (tags.length > 0) {
         const tagRows = tags.map((tag) => ({
@@ -88,6 +155,19 @@ function BoxForm({ onCreated }) {
         if (tagError) {
           throw tagError
         }
+      }
+
+      if (normalizedRoom) {
+        setRoomOptions((prev) => {
+          if (prev.includes(normalizedRoom)) {
+            return prev
+          }
+          return [...prev, normalizedRoom].sort((a, b) => a.localeCompare(b))
+        })
+      }
+
+      if (tags.length > 0) {
+        setTagOptions((prev) => normalizeTagList([...defaultTagOptions, ...prev, ...tags]))
       }
 
       setFormData(initialForm)
@@ -117,25 +197,34 @@ function BoxForm({ onCreated }) {
           size="small"
         />
 
-        <TextField
-          id="room"
-          label="Room"
+        <Autocomplete
+          freeSolo
+          options={roomOptions}
           value={formData.room}
-          onChange={handleChange('room')}
-          placeholder="Main bedroom"
-          fullWidth
-          size="small"
+          onChange={(_, newValue) => {
+            setFormData((prev) => ({ ...prev, room: newValue || '' }))
+          }}
+          onInputChange={(_, newInputValue, reason) => {
+            if (reason === 'reset') {
+              return
+            }
+            setFormData((prev) => ({ ...prev, room: newInputValue }))
+          }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              id="room"
+              label="Room"
+              placeholder="Main bedroom"
+              helperText="Type a new room or pick an existing one"
+              fullWidth
+              required
+              size="small"
+            />
+          )}
         />
 
-        <TextField
-          id="label"
-          label="Label"
-          value={formData.label}
-          onChange={handleChange('label')}
-          placeholder="Winter clothing"
-          fullWidth
-          size="small"
-        />
+       
 
         <TextField
             id="contents"
@@ -149,15 +238,26 @@ function BoxForm({ onCreated }) {
             size="small"
         />
 
-        <TextField
-          id="tags"
-          label="Tags (comma separated)"
-          value={formData.tagsText}
-          onChange={handleChange('tagsText')}
-          placeholder="fragile, heavy, do not stack"
-          helperText="Examples: fragile, heavy, do not stack"
-          fullWidth
-          size="small"
+        <Autocomplete
+          multiple
+          freeSolo
+          options={tagOptions}
+          value={formData.tags}
+          onChange={(_, newValue) => {
+            setFormData((prev) => ({ ...prev, tags: normalizeTagList(newValue) }))
+          }}
+          filterSelectedOptions
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              id="tags"
+              label="Tags"
+              placeholder="Add a tag"
+              helperText="Suggested: fragile, heavy, do not stack"
+              fullWidth
+              size="small"
+            />
+          )}
         />
         <TextField
             id="notes"
