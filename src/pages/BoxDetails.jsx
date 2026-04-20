@@ -124,7 +124,16 @@ function BoxDetails({ boxId: boxIdProp, onClose, onEdit, hideBackLink = false })
 
   return (
     <Container maxWidth="sm" sx={{ py: 3 }}>
+
       <Card variant="outlined" sx={{ overflow: 'hidden' }}>
+        <CardHeader
+          title={
+            <>
+              <strong>{box.box_number}</strong> {box.room || 'No room specified'}
+            </>
+          }
+          //title={box.label || 'Unlabeled box'}
+        />
         {box.photo_url ? (
           <CardMedia
             component="img"
@@ -136,57 +145,46 @@ function BoxDetails({ boxId: boxIdProp, onClose, onEdit, hideBackLink = false })
           <Box sx={{ height: 180, bgcolor: 'grey.100', borderBottom: '1px solid', borderColor: 'divider' }} />
         )}
 
-        <CardHeader
-          title={box.label || 'Unlabeled box'}
-          subheader={box.room ? `Room: ${box.room}` : 'Room: N/A'}
-          sx={{ pb: 0 }}
-        />
+        
 
         <CardContent>
           <Stack spacing={1.25}>
-            <Typography variant="body1">
-              <strong>Box Number:</strong> {box.box_number}
-            </Typography>
-
-            {tags.length > 0 ? (
+            {tags.length > 0 && (
               <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
                 {tags.map((tag) => (
                   <Chip key={tag} label={tag} size="small" />
                 ))}
               </Stack>
-            ) : (
-              <Typography color="text.secondary">No tags</Typography>
             )}
 
-            <Typography variant="body2" color="text.secondary">
-              <strong>Notes:</strong> {box.notes || 'No notes'}
-            </Typography>
-
             <Typography variant="subtitle2" component="h2">
-              Box Content
+              <strong>Box Content</strong>
             </Typography>
 
             {items.length === 0 ? (
               <Typography color="text.secondary">No contents listed.</Typography>
             ) : (
-              <List dense sx={{ p: 0 }}>
+              <List dense component="ul" sx={{ pl: 3, py: 0, listStyleType: 'disc' }}>
                 {items.map((item) => (
-                  <ListItem key={item.id} sx={{ px: 0 }}>
+                  <ListItem key={item.id} component="li" sx={{ display: 'list-item', px: 0 }}>
                     {item.content}
                   </ListItem>
                 ))}
               </List>
             )}
+          
+            <Typography variant="body2" color="text.secondary">
+              <strong>Notes:</strong> {box.notes || 'No notes'}
+            </Typography>
           </Stack>
         </CardContent>
 
         <CardActions sx={{ justifyContent: 'flex-end', px: 2, pb: 2 }}>
-          <Button variant="outlined" disabled={!onEdit} onClick={() => onEdit?.({ box, items, tags })}>
+          <Button variant="contained" disabled={!onEdit} onClick={() => onEdit?.({ box, items, tags })}>
             Edit
           </Button>
-
           {onClose ? (
-            <Button variant="contained" onClick={onClose}>
+            <Button  variant="outlined" onClick={onClose}>
               Close
             </Button>
           ) : hideBackLink ? null : (
@@ -194,6 +192,7 @@ function BoxDetails({ boxId: boxIdProp, onClose, onEdit, hideBackLink = false })
               Back to home
             </Button>
           )}
+         
         </CardActions>
       </Card>
     </Container>
