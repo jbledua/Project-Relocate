@@ -13,8 +13,9 @@ import Typography from '@mui/material/Typography'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 
-function BoxDetails() {
-  const { boxId } = useParams()
+function BoxDetails({ boxId: boxIdProp, onClose, hideBackLink = false }) {
+  const params = useParams()
+  const boxId = boxIdProp || params.boxId
   const [box, setBox] = useState(null)
   const [items, setItems] = useState([])
   const [tags, setTags] = useState([])
@@ -72,7 +73,7 @@ function BoxDetails() {
 
   if (loading) {
     return (
-      <Container maxWidth="sm" sx={{ py: 3 }}>
+      <Container maxWidth="sm" sx={{ py: 3, minWidth: hideBackLink ? 0 : undefined }}>
         <Stack direction="row" spacing={1} alignItems="center">
           <CircularProgress size={20} />
           <Typography>Loading box details...</Typography>
@@ -87,9 +88,11 @@ function BoxDetails() {
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Stack spacing={1.5}>
             <Alert severity="error">{error}</Alert>
-            <MuiLink component={RouterLink} to="/" underline="hover">
-              Back to home
-            </MuiLink>
+            {hideBackLink ? null : (
+              <MuiLink component={RouterLink} to="/" underline="hover">
+                Back to home
+              </MuiLink>
+            )}
           </Stack>
         </Paper>
       </Container>
@@ -102,9 +105,11 @@ function BoxDetails() {
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Stack spacing={1.5}>
             <Typography>Box not found.</Typography>
-            <MuiLink component={RouterLink} to="/" underline="hover">
-              Back to home
-            </MuiLink>
+            {hideBackLink ? null : (
+              <MuiLink component={RouterLink} to="/" underline="hover">
+                Back to home
+              </MuiLink>
+            )}
           </Stack>
         </Paper>
       </Container>
@@ -115,9 +120,17 @@ function BoxDetails() {
     <Container maxWidth="sm" sx={{ py: 3 }}>
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Stack spacing={1.5}>
-          <MuiLink component={RouterLink} to="/" underline="hover">
-            Back to home
-          </MuiLink>
+          {hideBackLink ? null : (
+            <MuiLink component={RouterLink} to="/" underline="hover">
+              Back to home
+            </MuiLink>
+          )}
+
+          {onClose ? (
+            <MuiLink component="button" type="button" onClick={onClose} underline="hover" sx={{ textAlign: 'left' }}>
+              Close
+            </MuiLink>
+          ) : null}
 
           <Typography variant="h4" component="h1">
             {box.box_number}

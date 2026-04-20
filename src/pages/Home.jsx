@@ -11,19 +11,25 @@ import Grid from '@mui/material/Grid'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useNavigate } from 'react-router-dom'
 import BoxCard from '../components/BoxCard'
 import BoxForm from '../components/BoxForm'
 import BoxSearch from '../components/BoxSearch'
 import ContentSearch from '../components/ContentSearch'
+import BoxDetails from './BoxDetails'
 import { supabase } from '../lib/supabaseClient'
 
 function Home() {
+  const isDesktop = useMediaQuery('(min-width:900px)')
+  const navigate = useNavigate()
   const [boxSearch, setBoxSearch] = useState('')
   const [contentSearch, setContentSearch] = useState('')
   const [boxes, setBoxes] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [isFormOpen, setIsFormOpen] = useState(false)
+  const [selectedBoxId, setSelectedBoxId] = useState('')
 
   const attachTagsToBoxes = useCallback(async (boxList) => {
     if (!boxList || boxList.length === 0) {
@@ -60,6 +66,19 @@ function Home() {
 
   const handleCloseForm = () => {
     setIsFormOpen(false)
+  }
+
+  const handleOpenDetails = (boxId) => {
+    if (isDesktop) {
+      setSelectedBoxId(boxId)
+      return
+    }
+
+    navigate(`/boxes/${boxId}`)
+  }
+
+  const handleCloseDetails = () => {
+    setSelectedBoxId('')
   }
 
   const handleBoxCreated = async () => {
@@ -205,7 +224,7 @@ function Home() {
             <Grid container spacing={1.5}>
               {boxes.map((box) => (
                 <Grid key={box.id} size={{ xs: 12, sm: 6, md: 4 }}>
-                  <BoxCard box={box} />
+                  <BoxCard box={box} onClick={() => handleOpenDetails(box.id)} />
                 </Grid>
               ))}
             </Grid>
@@ -225,6 +244,20 @@ function Home() {
           <DialogTitle>Add a box</DialogTitle>
           <DialogContent>
             <BoxForm onCreated={handleBoxCreated} />
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={Boolean(selectedBoxId)}
+          onClose={handleCloseDetails}
+          fullWidth
+          maxWidth="sm"
+          scroll="paper"
+        >
+          <DialogContent>
+            {selectedBoxId ? (
+              <BoxDetails boxId={selectedBoxId} onClose={handleCloseDetails} hideBackLink />
+            ) : null}
           </DialogContent>
         </Dialog>
       </Stack>

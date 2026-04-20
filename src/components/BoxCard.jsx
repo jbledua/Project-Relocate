@@ -6,10 +6,14 @@ import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { Link as RouterLink } from 'react-router-dom'
 
-function BoxCard({ box }) {
+function BoxCard({ box, onClick, to }) {
+  const actionProps = onClick
+    ? { component: 'button', onClick, type: 'button' }
+    : { component: RouterLink, to: to || `/boxes/${box.id}` }
+
   return (
     <Card variant="outlined">
-      <CardActionArea component={RouterLink} to={`/boxes/${box.id}`}>
+      <CardActionArea {...actionProps}>
         <CardContent>
           <Typography variant="h6" component="h3" gutterBottom>
             {box.box_number}
