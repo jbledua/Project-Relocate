@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
+import Card from '@mui/material/Card'
+import CardActions from '@mui/material/CardActions'
+import CardContent from '@mui/material/CardContent'
+import CardHeader from '@mui/material/CardHeader'
+import CardMedia from '@mui/material/CardMedia'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Container from '@mui/material/Container'
-import Divider from '@mui/material/Divider'
 import MuiLink from '@mui/material/Link'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
@@ -120,76 +124,78 @@ function BoxDetails({ boxId: boxIdProp, onClose, onEdit, hideBackLink = false })
 
   return (
     <Container maxWidth="sm" sx={{ py: 3 }}>
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Stack spacing={1.5}>
-          <Typography variant="h4" component="h1">
-            {box.box_number}
-          </Typography>
+      <Card variant="outlined" sx={{ overflow: 'hidden' }}>
+        {box.photo_url ? (
+          <CardMedia
+            component="img"
+            image={box.photo_url}
+            alt={`${box.box_number} reference`}
+            sx={{ width: '100%', maxHeight: 260, objectFit: 'cover' }}
+          />
+        ) : (
+          <Box sx={{ height: 180, bgcolor: 'grey.100', borderBottom: '1px solid', borderColor: 'divider' }} />
+        )}
 
-          <Typography>
-            <strong>Room:</strong> {box.room || 'N/A'}
-          </Typography>
-          <Typography>
-            <strong>Label:</strong> {box.label || 'N/A'}
-          </Typography>
-          <Typography>
-            <strong>Notes:</strong> {box.notes || 'No notes'}
-          </Typography>
+        <CardHeader
+          title={box.label || 'Unlabeled box'}
+          subheader={box.room ? `Room: ${box.room}` : 'Room: N/A'}
+          sx={{ pb: 0 }}
+        />
 
-          {tags.length > 0 ? (
-            <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
-              {tags.map((tag) => (
-                <Chip key={tag} label={tag} size="small" />
-              ))}
-            </Stack>
-          ) : null}
+        <CardContent>
+          <Stack spacing={1.25}>
+            <Typography variant="body1">
+              <strong>Box Number:</strong> {box.box_number}
+            </Typography>
 
-          {box.photo_url ? (
-            <Box
-              component="img"
-              src={box.photo_url}
-              alt={`${box.box_number} reference`}
-              sx={{ width: '100%', maxWidth: 320, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
-            />
-          ) : (
-            <Typography color="text.secondary">No photo uploaded yet.</Typography>
-          )}
+            {tags.length > 0 ? (
+              <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+                {tags.map((tag) => (
+                  <Chip key={tag} label={tag} size="small" />
+                ))}
+              </Stack>
+            ) : (
+              <Typography color="text.secondary">No tags</Typography>
+            )}
 
-          <Typography variant="h6" component="h2">
-            Contents
-          </Typography>
+            <Typography variant="body2" color="text.secondary">
+              <strong>Notes:</strong> {box.notes || 'No notes'}
+            </Typography>
 
-          {items.length === 0 ? (
-            <Typography color="text.secondary">No contents listed.</Typography>
-          ) : (
-            <List dense sx={{ p: 0 }}>
-              {items.map((item) => (
-                <ListItem key={item.id} sx={{ px: 0 }}>
-                  {item.content}
-                </ListItem>
-              ))}
-            </List>
-          )}
+            <Typography variant="subtitle2" component="h2">
+              Box Content
+            </Typography>
 
-          <Divider />
-
-          <Stack direction="row" spacing={1} justifyContent="flex-end">
-            <Button variant="outlined" disabled={!onEdit} onClick={() => onEdit?.({ box, items, tags })}>
-              Edit
-            </Button>
-
-            {onClose ? (
-              <Button variant="contained" onClick={onClose}>
-                Close
-              </Button>
-            ) : hideBackLink ? null : (
-              <Button component={RouterLink} to="/" variant="contained">
-                Back to home
-              </Button>
+            {items.length === 0 ? (
+              <Typography color="text.secondary">No contents listed.</Typography>
+            ) : (
+              <List dense sx={{ p: 0 }}>
+                {items.map((item) => (
+                  <ListItem key={item.id} sx={{ px: 0 }}>
+                    {item.content}
+                  </ListItem>
+                ))}
+              </List>
             )}
           </Stack>
-        </Stack>
-      </Paper>
+        </CardContent>
+
+        <CardActions sx={{ justifyContent: 'flex-end', px: 2, pb: 2 }}>
+          <Button variant="outlined" disabled={!onEdit} onClick={() => onEdit?.({ box, items, tags })}>
+            Edit
+          </Button>
+
+          {onClose ? (
+            <Button variant="contained" onClick={onClose}>
+              Close
+            </Button>
+          ) : hideBackLink ? null : (
+            <Button component={RouterLink} to="/" variant="contained">
+              Back to home
+            </Button>
+          )}
+        </CardActions>
+      </Card>
     </Container>
   )
 }

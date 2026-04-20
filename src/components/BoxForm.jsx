@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import Alert from '@mui/material/Alert'
 import Autocomplete from '@mui/material/Autocomplete'
-import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
+import Card from '@mui/material/Card'
+import CardContent from '@mui/material/CardContent'
+import CardMedia from '@mui/material/CardMedia'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
@@ -455,22 +457,20 @@ function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initial
           </Typography>
         ) : null}
 
-        {photoPreviewUrl ? (
-          <Box
-            component="img"
-            src={photoPreviewUrl}
-            alt="Selected preview"
-            sx={{ width: '100%', maxWidth: 280, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
-          />
-        ) : null}
-
-        {!photoPreviewUrl && existingPhotoUrl && !removePhoto ? (
-          <Box
-            component="img"
-            src={existingPhotoUrl}
-            alt="Current box reference"
-            sx={{ width: '100%', maxWidth: 280, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
-          />
+        {photoPreviewUrl || (existingPhotoUrl && !removePhoto) ? (
+          <Card variant="outlined" sx={{ maxWidth: 320 }}>
+            <CardMedia
+              component="img"
+              image={photoPreviewUrl || existingPhotoUrl}
+              alt={photoPreviewUrl ? 'Selected preview' : 'Current box reference'}
+              sx={{ maxHeight: 220, objectFit: 'cover' }}
+            />
+            <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+              <Typography variant="caption" color="text.secondary">
+                {photoPreviewUrl ? 'New photo preview' : 'Current saved photo'}
+              </Typography>
+            </CardContent>
+          </Card>
         ) : null}
 
         {error ? <Alert severity="error">{error}</Alert> : null}
