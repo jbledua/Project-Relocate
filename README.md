@@ -93,6 +93,10 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 npm run dev
 ```
 
+### 5. Enable authenticated data access (recommended)
+
+After running `supabase/setup.sql`, run `supabase/auth_policies.sql` in Supabase SQL Editor to require signed-in users for reads/writes.
+
 ---
 
 ## Supabase Setup (Planned Schema)

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Container from '@mui/material/Container'
 import Dialog from '@mui/material/Dialog'
@@ -25,7 +26,7 @@ import BoxForm from '../components/BoxForm'
 import BoxDetails from './BoxDetails'
 import { supabase } from '../lib/supabaseClient'
 
-function Home() {
+function Home({ user, onSignOut }) {
   const isDesktop = useMediaQuery('(min-width:900px)')
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
@@ -36,6 +37,21 @@ function Home() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedBoxId, setSelectedBoxId] = useState('')
   const [editPayload, setEditPayload] = useState(null)
+  const [authError, setAuthError] = useState('')
+
+  const handleSignOutClick = async () => {
+    setAuthError('')
+
+    if (!onSignOut) {
+      return
+    }
+
+    try {
+      await onSignOut()
+    } catch (signOutError) {
+      setAuthError(signOutError.message || 'Could not sign out.')
+    }
+  }
 
   const attachTagsToBoxes = useCallback(async (boxList) => {
     if (!boxList || boxList.length === 0) {
@@ -348,14 +364,25 @@ function Home() {
   return (
     <Container maxWidth="md" sx={{ py: 3 }}>
       <Stack spacing={2}>
-        <Box>
-          <Typography variant="h4" component="h1" gutterBottom>
-            Project-Relocate
-          </Typography>
-          <Typography color="text.secondary">
-            Track boxes, contents, and notes while moving.
-          </Typography>
-        </Box>
+        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1.5}>
+          <Box>
+            <Typography variant="h4" component="h1" gutterBottom>
+              Project-Relocate
+            </Typography>
+            <Typography color="text.secondary">
+              Track boxes, contents, and notes while moving.
+            </Typography>
+          </Box>
+
+          <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}>
+            {user?.email ? <Typography color="text.secondary">{user.email}</Typography> : null}
+            <Button variant="outlined" onClick={handleSignOutClick}>
+              Sign out
+            </Button>
+          </Stack>
+        </Stack>
+
+        {authError ? <Alert severity="error">{authError}</Alert> : null}
 
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="h6" component="h2" sx={{ mb: 2 }}>

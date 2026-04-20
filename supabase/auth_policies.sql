@@ -1,0 +1,97 @@
+-- Restrict Project-Relocate data access to signed-in users.
+-- Run this in Supabase SQL Editor after enabling Supabase Auth providers.
+
+alter table public.boxes enable row level security;
+alter table public.box_items enable row level security;
+alter table public.box_tags enable row level security;
+
+-- Remove legacy open-access policies if they exist.
+drop policy if exists boxes_select_all on public.boxes;
+drop policy if exists boxes_insert_all on public.boxes;
+drop policy if exists boxes_update_all on public.boxes;
+drop policy if exists boxes_delete_all on public.boxes;
+
+drop policy if exists box_items_select_all on public.box_items;
+drop policy if exists box_items_insert_all on public.box_items;
+drop policy if exists box_items_update_all on public.box_items;
+drop policy if exists box_items_delete_all on public.box_items;
+
+drop policy if exists box_tags_select_all on public.box_tags;
+drop policy if exists box_tags_insert_all on public.box_tags;
+drop policy if exists box_tags_update_all on public.box_tags;
+drop policy if exists box_tags_delete_all on public.box_tags;
+
+drop policy if exists box_photos_select_all on storage.objects;
+drop policy if exists box_photos_insert_all on storage.objects;
+drop policy if exists box_photos_update_all on storage.objects;
+drop policy if exists box_photos_delete_all on storage.objects;
+
+-- Authenticated users can read and modify app data.
+create policy boxes_select_authenticated on public.boxes
+  for select to authenticated
+  using (true);
+
+create policy boxes_insert_authenticated on public.boxes
+  for insert to authenticated
+  with check (true);
+
+create policy boxes_update_authenticated on public.boxes
+  for update to authenticated
+  using (true)
+  with check (true);
+
+create policy boxes_delete_authenticated on public.boxes
+  for delete to authenticated
+  using (true);
+
+create policy box_items_select_authenticated on public.box_items
+  for select to authenticated
+  using (true);
+
+create policy box_items_insert_authenticated on public.box_items
+  for insert to authenticated
+  with check (true);
+
+create policy box_items_update_authenticated on public.box_items
+  for update to authenticated
+  using (true)
+  with check (true);
+
+create policy box_items_delete_authenticated on public.box_items
+  for delete to authenticated
+  using (true);
+
+create policy box_tags_select_authenticated on public.box_tags
+  for select to authenticated
+  using (true);
+
+create policy box_tags_insert_authenticated on public.box_tags
+  for insert to authenticated
+  with check (true);
+
+create policy box_tags_update_authenticated on public.box_tags
+  for update to authenticated
+  using (true)
+  with check (true);
+
+create policy box_tags_delete_authenticated on public.box_tags
+  for delete to authenticated
+  using (true);
+
+-- Keep box photos publicly readable but require auth for write operations.
+create policy box_photos_select_public on storage.objects
+  for select
+  using (bucket_id = 'box-photos');
+
+create policy box_photos_insert_authenticated on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'box-photos');
+
+create policy box_photos_update_authenticated on storage.objects
+  for update to authenticated
+  using (bucket_id = 'box-photos')
+  with check (bucket_id = 'box-photos');
+
+create policy box_photos_delete_authenticated on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'box-photos');
