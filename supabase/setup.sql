@@ -39,6 +39,11 @@ create index if not exists idx_box_items_content on public.box_items (content);
 create index if not exists idx_box_tags_box_id on public.box_tags (box_id);
 create index if not exists idx_box_tags_tag on public.box_tags (tag);
 
+-- Storage bucket for box photos
+insert into storage.buckets (id, name, public)
+values ('box-photos', 'box-photos', true)
+on conflict (id) do nothing;
+
 -- Optional: turn on RLS and allow simple read/write for MVP.
 -- For production, replace these with authenticated user-based policies.
 alter table public.boxes enable row level security;
@@ -129,5 +134,37 @@ begin
     where schemaname = 'public' and tablename = 'box_tags' and policyname = 'box_tags_delete_all'
   ) then
     create policy box_tags_delete_all on public.box_tags for delete using (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'storage' and tablename = 'objects' and policyname = 'box_photos_select_all'
+  ) then
+    create policy box_photos_select_all on storage.objects
+      for select using (bucket_id = 'box-photos');
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'storage' and tablename = 'objects' and policyname = 'box_photos_insert_all'
+  ) then
+    create policy box_photos_insert_all on storage.objects
+      for insert with check (bucket_id = 'box-photos');
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'storage' and tablename = 'objects' and policyname = 'box_photos_update_all'
+  ) then
+    create policy box_photos_update_all on storage.objects
+      for update using (bucket_id = 'box-photos') with check (bucket_id = 'box-photos');
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'storage' and tablename = 'objects' and policyname = 'box_photos_delete_all'
+  ) then
+    create policy box_photos_delete_all on storage.objects
+      for delete using (bucket_id = 'box-photos');
   end if;
 end $$;

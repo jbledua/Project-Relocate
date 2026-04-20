@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Alert from '@mui/material/Alert'
 import Autocomplete from '@mui/material/Autocomplete'
+import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
@@ -46,14 +47,39 @@ function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initial
   const [formData, setFormData] = useState(initialForm)
   const [roomOptions, setRoomOptions] = useState([])
   const [tagOptions, setTagOptions] = useState(defaultTagOptions)
+  const [photoFile, setPhotoFile] = useState(null)
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState('')
+  const [existingPhotoUrl, setExistingPhotoUrl] = useState('')
+  const [removePhoto, setRemovePhoto] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     if (mode === 'edit') {
       setFormData(buildFormData(initialValues))
+      setExistingPhotoUrl(initialValues?.photo_url || '')
+      setPhotoFile(null)
+      setRemovePhoto(false)
+    } else {
+      setExistingPhotoUrl('')
+      setPhotoFile(null)
+      setRemovePhoto(false)
     }
   }, [initialValues, mode])
+
+  useEffect(() => {
+    if (!photoFile) {
+      setPhotoPreviewUrl('')
+      return undefined
+    }
+
+    const objectUrl = URL.createObjectURL(photoFile)
+    setPhotoPreviewUrl(objectUrl)
+
+    return () => {
+      URL.revokeObjectURL(objectUrl)
+    }
+  }, [photoFile])
 
   useEffect(() => {
     let isActive = true
@@ -109,6 +135,24 @@ function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initial
 
   const handleChange = (field) => (event) => {
     setFormData((prev) => ({ ...prev, [field]: event.target.value }))
+  }
+
+  const handlePhotoSelected = (event) => {
+    const selectedFile = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!selectedFile) {
+      return
+    }
+
+    if (!selectedFile.type.startsWith('image/')) {
+      setError('Please select an image file.')
+      return
+    }
+
+    setError('')
+    setPhotoFile(selectedFile)
+    setRemovePhoto(false)
   }
 
   const handleSubmit = async (event) => {
@@ -234,14 +278,51 @@ function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initial
         setTagOptions((prev) => normalizeTagList([...defaultTagOptions, ...prev, ...tags]))
       }
 
+      let finalPhotoUrl = removePhoto ? null : existingPhotoUrl || null
+
+      if (photoFile) {
+        const originalExtension = (photoFile.name.split('.').pop() || 'jpg').toLowerCase()
+        const fileExtension = originalExtension.replace(/[^a-z0-9]/g, '') || 'jpg'
+        const filePath = `${targetBoxId}/${Date.now()}.${fileExtension}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('box-photos')
+          .upload(filePath, photoFile, { upsert: true })
+
+        if (uploadError) {
+          throw new Error(`Photo upload failed: ${uploadError.message}`)
+        }
+
+        const { data: publicData } = supabase.storage.from('box-photos').getPublicUrl(filePath)
+        finalPhotoUrl = publicData.publicUrl
+      }
+
+      if (photoFile || removePhoto) {
+        const { error: photoUpdateError } = await supabase
+          .from('boxes')
+          .update({ photo_url: finalPhotoUrl })
+          .eq('id', targetBoxId)
+
+        if (photoUpdateError) {
+          throw photoUpdateError
+        }
+      }
+
       if (mode !== 'edit') {
         setFormData(initialForm)
+        setPhotoFile(null)
+        setRemovePhoto(false)
+      }
+
+      const savedBoxWithPhoto = {
+        ...savedBox,
+        photo_url: photoFile || removePhoto ? finalPhotoUrl : savedBox.photo_url,
       }
 
       if (onSaved) {
-        onSaved(savedBox)
+        onSaved(savedBoxWithPhoto)
       } else if (onCreated) {
-        onCreated(savedBox)
+        onCreated(savedBoxWithPhoto)
       }
     } catch (submitError) {
       setError(submitError.message || 'Could not save box.')
@@ -341,6 +422,57 @@ function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initial
             multiline
             size="small"
         />
+
+        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+          <Button component="label" type="button" variant="outlined">
+            Upload photo
+            <input hidden type="file" accept="image/*" onChange={handlePhotoSelected} />
+          </Button>
+
+          <Button component="label" type="button" variant="outlined">
+            Use camera
+            <input hidden type="file" accept="image/*" capture="environment" onChange={handlePhotoSelected} />
+          </Button>
+
+          {(photoFile || (existingPhotoUrl && !removePhoto)) ? (
+            <Button
+              type="button"
+              variant="text"
+              color="error"
+              onClick={() => {
+                setPhotoFile(null)
+                setRemovePhoto(true)
+              }}
+            >
+              Remove photo
+            </Button>
+          ) : null}
+        </Stack>
+
+        {photoFile ? (
+          <Typography variant="body2" color="text.secondary">
+            Selected: {photoFile.name}
+          </Typography>
+        ) : null}
+
+        {photoPreviewUrl ? (
+          <Box
+            component="img"
+            src={photoPreviewUrl}
+            alt="Selected preview"
+            sx={{ width: '100%', maxWidth: 280, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+          />
+        ) : null}
+
+        {!photoPreviewUrl && existingPhotoUrl && !removePhoto ? (
+          <Box
+            component="img"
+            src={existingPhotoUrl}
+            alt="Current box reference"
+            sx={{ width: '100%', maxWidth: 280, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+          />
+        ) : null}
+
         {error ? <Alert severity="error">{error}</Alert> : null}
 
         <Stack direction="row" spacing={1} justifyContent="flex-end">

@@ -492,6 +492,7 @@ function Home() {
                   boxNumber: editPayload.box.box_number,
                   room: editPayload.box.room || '',
                   notes: editPayload.box.notes || '',
+                  photo_url: editPayload.box.photo_url || '',
                   contents: (editPayload.items || []).map((item) => item.content),
                   tags: editPayload.tags || [],
                 }}
