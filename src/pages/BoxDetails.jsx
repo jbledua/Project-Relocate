@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Container from '@mui/material/Container'
+import Divider from '@mui/material/Divider'
 import MuiLink from '@mui/material/Link'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
@@ -13,7 +15,7 @@ import Typography from '@mui/material/Typography'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 
-function BoxDetails({ boxId: boxIdProp, onClose, hideBackLink = false }) {
+function BoxDetails({ boxId: boxIdProp, onClose, onEdit, hideBackLink = false }) {
   const params = useParams()
   const boxId = boxIdProp || params.boxId
   const [box, setBox] = useState(null)
@@ -120,18 +122,6 @@ function BoxDetails({ boxId: boxIdProp, onClose, hideBackLink = false }) {
     <Container maxWidth="sm" sx={{ py: 3 }}>
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Stack spacing={1.5}>
-          {hideBackLink ? null : (
-            <MuiLink component={RouterLink} to="/" underline="hover">
-              Back to home
-            </MuiLink>
-          )}
-
-          {onClose ? (
-            <MuiLink component="button" type="button" onClick={onClose} underline="hover" sx={{ textAlign: 'left' }}>
-              Close
-            </MuiLink>
-          ) : null}
-
           <Typography variant="h4" component="h1">
             {box.box_number}
           </Typography>
@@ -180,6 +170,24 @@ function BoxDetails({ boxId: boxIdProp, onClose, hideBackLink = false }) {
               ))}
             </List>
           )}
+
+          <Divider />
+
+          <Stack direction="row" spacing={1} justifyContent="flex-end">
+            <Button variant="outlined" disabled={!onEdit} onClick={() => onEdit?.(box)}>
+              Edit
+            </Button>
+
+            {onClose ? (
+              <Button variant="contained" onClick={onClose}>
+                Close
+              </Button>
+            ) : hideBackLink ? null : (
+              <Button component={RouterLink} to="/" variant="contained">
+                Back to home
+              </Button>
+            )}
+          </Stack>
         </Stack>
       </Paper>
     </Container>
