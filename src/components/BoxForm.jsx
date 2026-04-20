@@ -24,12 +24,36 @@ const initialForm = {
   tags: [],
 }
 
-function BoxForm({ onCreated }) {
+const buildFormData = (initialValues) => {
+  if (!initialValues) {
+    return initialForm
+  }
+
+  const normalizedContents = Array.isArray(initialValues.contents)
+    ? initialValues.contents.join(', ')
+    : initialValues.contentsText || ''
+
+  return {
+    boxNumber: initialValues.boxNumber || initialValues.box_number || '',
+    room: initialValues.room || '',
+    notes: initialValues.notes || '',
+    contentsText: normalizedContents,
+    tags: normalizeTagList(initialValues.tags || []),
+  }
+}
+
+function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initialValues }) {
   const [formData, setFormData] = useState(initialForm)
   const [roomOptions, setRoomOptions] = useState([])
   const [tagOptions, setTagOptions] = useState(defaultTagOptions)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (mode === 'edit') {
+      setFormData(buildFormData(initialValues))
+    }
+  }, [initialValues, mode])
 
   useEffect(() => {
     let isActive = true
@@ -109,20 +133,60 @@ function BoxForm({ onCreated }) {
     try {
       const derivedLabel = `${normalizedBoxNumber}-${normalizedRoom}`
 
-      const { data: newBox, error: boxError } = await supabase
-        .from('boxes')
-        .insert({
-          box_number: normalizedBoxNumber,
-          room: normalizedRoom || null,
-          label: derivedLabel,
-          notes: formData.notes.trim() || null,
-        })
-        .select()
-        .single()
+      let savedBox = null
 
-      if (boxError) {
-        throw boxError
+      if (mode === 'edit' && boxId) {
+        const { data: updatedBox, error: boxError } = await supabase
+          .from('boxes')
+          .update({
+            box_number: normalizedBoxNumber,
+            room: normalizedRoom,
+            label: derivedLabel,
+            notes: formData.notes.trim() || null,
+          })
+          .eq('id', boxId)
+          .select()
+          .maybeSingle()
+
+        if (boxError) {
+          throw boxError
+        }
+
+        if (!updatedBox) {
+          throw new Error('Could not update box. Check RLS update/delete policies in supabase/setup.sql.')
+        }
+
+        savedBox = updatedBox
+
+        const { error: deleteItemsError } = await supabase.from('box_items').delete().eq('box_id', boxId)
+        if (deleteItemsError) {
+          throw deleteItemsError
+        }
+
+        const { error: deleteTagsError } = await supabase.from('box_tags').delete().eq('box_id', boxId)
+        if (deleteTagsError) {
+          throw deleteTagsError
+        }
+      } else {
+        const { data: newBox, error: boxError } = await supabase
+          .from('boxes')
+          .insert({
+            box_number: normalizedBoxNumber,
+            room: normalizedRoom,
+            label: derivedLabel,
+            notes: formData.notes.trim() || null,
+          })
+          .select()
+          .single()
+
+        if (boxError) {
+          throw boxError
+        }
+
+        savedBox = newBox
       }
+
+      const targetBoxId = savedBox.id
 
       const items = formData.contentsText
         .split(',')
@@ -131,7 +195,7 @@ function BoxForm({ onCreated }) {
 
       if (items.length > 0) {
         const itemRows = items.map((content) => ({
-          box_id: newBox.id,
+          box_id: targetBoxId,
           content,
         }))
 
@@ -146,7 +210,7 @@ function BoxForm({ onCreated }) {
 
       if (tags.length > 0) {
         const tagRows = tags.map((tag) => ({
-          box_id: newBox.id,
+          box_id: targetBoxId,
           tag,
         }))
 
@@ -170,10 +234,17 @@ function BoxForm({ onCreated }) {
         setTagOptions((prev) => normalizeTagList([...defaultTagOptions, ...prev, ...tags]))
       }
 
-      setFormData(initialForm)
-      onCreated()
+      if (mode !== 'edit') {
+        setFormData(initialForm)
+      }
+
+      if (onSaved) {
+        onSaved(savedBox)
+      } else if (onCreated) {
+        onCreated(savedBox)
+      }
     } catch (submitError) {
-      setError(submitError.message || 'Could not create box.')
+      setError(submitError.message || 'Could not save box.')
     } finally {
       setIsSubmitting(false)
     }
@@ -182,7 +253,7 @@ function BoxForm({ onCreated }) {
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
       <Typography variant="h6" component="h2" sx={{ mb: 2 }}>
-        Add box
+        {mode === 'edit' ? 'Edit box' : 'Add box'}
       </Typography>
 
       <Stack component="form" onSubmit={handleSubmit} spacing={1.5}>
@@ -272,9 +343,17 @@ function BoxForm({ onCreated }) {
         />
         {error ? <Alert severity="error">{error}</Alert> : null}
 
-        <Button type="submit" variant="contained" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving...' : 'Save box'}
-        </Button>
+        <Stack direction="row" spacing={1} justifyContent="flex-end">
+          {onCancel ? (
+            <Button type="button" variant="outlined" onClick={onCancel} disabled={isSubmitting}>
+              Cancel
+            </Button>
+          ) : null}
+
+          <Button type="submit" variant="contained" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving...' : mode === 'edit' ? 'Save changes' : 'Save box'}
+          </Button>
+        </Stack>
       </Stack>
     </Paper>
   )

@@ -63,6 +63,20 @@ begin
 
   if not exists (
     select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'boxes' and policyname = 'boxes_update_all'
+  ) then
+    create policy boxes_update_all on public.boxes for update using (true) with check (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'boxes' and policyname = 'boxes_delete_all'
+  ) then
+    create policy boxes_delete_all on public.boxes for delete using (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
     where schemaname = 'public' and tablename = 'box_items' and policyname = 'box_items_select_all'
   ) then
     create policy box_items_select_all on public.box_items for select using (true);
@@ -77,6 +91,20 @@ begin
 
   if not exists (
     select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'box_items' and policyname = 'box_items_update_all'
+  ) then
+    create policy box_items_update_all on public.box_items for update using (true) with check (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'box_items' and policyname = 'box_items_delete_all'
+  ) then
+    create policy box_items_delete_all on public.box_items for delete using (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
     where schemaname = 'public' and tablename = 'box_tags' and policyname = 'box_tags_select_all'
   ) then
     create policy box_tags_select_all on public.box_tags for select using (true);
@@ -87,5 +115,19 @@ begin
     where schemaname = 'public' and tablename = 'box_tags' and policyname = 'box_tags_insert_all'
   ) then
     create policy box_tags_insert_all on public.box_tags for insert with check (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'box_tags' and policyname = 'box_tags_update_all'
+  ) then
+    create policy box_tags_update_all on public.box_tags for update using (true) with check (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'box_tags' and policyname = 'box_tags_delete_all'
+  ) then
+    create policy box_tags_delete_all on public.box_tags for delete using (true);
   end if;
 end $$;

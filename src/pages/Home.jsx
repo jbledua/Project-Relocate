@@ -35,6 +35,7 @@ function Home() {
   const [error, setError] = useState('')
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedBoxId, setSelectedBoxId] = useState('')
+  const [editPayload, setEditPayload] = useState(null)
 
   const attachTagsToBoxes = useCallback(async (boxList) => {
     if (!boxList || boxList.length === 0) {
@@ -86,9 +87,23 @@ function Home() {
     setSelectedBoxId('')
   }
 
+  const handleOpenEdit = (payload) => {
+    setEditPayload(payload)
+    setSelectedBoxId('')
+  }
+
+  const handleCloseEdit = () => {
+    setEditPayload(null)
+  }
+
   const handleBoxCreated = async () => {
     await fetchBoxes()
     handleCloseForm()
+  }
+
+  const handleBoxUpdated = async () => {
+    await fetchBoxes()
+    handleCloseEdit()
   }
 
   const clearAllFilters = () => {
@@ -456,7 +471,33 @@ function Home() {
         >
           <DialogContent>
             {selectedBoxId ? (
-              <BoxDetails boxId={selectedBoxId} onClose={handleCloseDetails} hideBackLink />
+              <BoxDetails
+                boxId={selectedBoxId}
+                onClose={handleCloseDetails}
+                onEdit={handleOpenEdit}
+                hideBackLink
+              />
+            ) : null}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={Boolean(editPayload)} onClose={handleCloseEdit} fullWidth maxWidth="sm" scroll="paper">
+          <DialogTitle>Edit box</DialogTitle>
+          <DialogContent>
+            {editPayload ? (
+              <BoxForm
+                mode="edit"
+                boxId={editPayload.box.id}
+                initialValues={{
+                  boxNumber: editPayload.box.box_number,
+                  room: editPayload.box.room || '',
+                  notes: editPayload.box.notes || '',
+                  contents: (editPayload.items || []).map((item) => item.content),
+                  tags: editPayload.tags || [],
+                }}
+                onSaved={handleBoxUpdated}
+                onCancel={handleCloseEdit}
+              />
             ) : null}
           </DialogContent>
         </Dialog>

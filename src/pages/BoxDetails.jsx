@@ -174,7 +174,7 @@ function BoxDetails({ boxId: boxIdProp, onClose, onEdit, hideBackLink = false })
           <Divider />
 
           <Stack direction="row" spacing={1} justifyContent="flex-end">
-            <Button variant="outlined" disabled={!onEdit} onClick={() => onEdit?.(box)}>
+            <Button variant="outlined" disabled={!onEdit} onClick={() => onEdit?.({ box, items, tags })}>
               Edit
             </Button>
 
