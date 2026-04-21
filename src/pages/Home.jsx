@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import AddIcon from '@mui/icons-material/Add'
 import Alert from '@mui/material/Alert'
 import AppBar from '@mui/material/AppBar'
 import Avatar from '@mui/material/Avatar'
@@ -524,7 +525,7 @@ function Home({ user, onSignOut }) {
           onClick={handleOpenForm}
           sx={{ position: 'fixed', right: 24, bottom: 24 }}
         >
-          +
+          <AddIcon />
         </Fab>
 
         <Dialog open={isFormOpen} onClose={handleCloseForm} fullWidth maxWidth="sm">
