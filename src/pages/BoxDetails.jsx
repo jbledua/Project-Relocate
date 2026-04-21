@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -10,17 +10,21 @@ import CardMedia from '@mui/material/CardMedia'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Container from '@mui/material/Container'
+import Dialog from '@mui/material/Dialog'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
 import MuiLink from '@mui/material/Link'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import { Link as RouterLink, useParams } from 'react-router-dom'
+import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 
 function BoxDetails({ boxId: boxIdProp, onClose, onEdit, hideBackLink = false }) {
   const params = useParams()
+  const navigate = useNavigate()
   const boxId = boxIdProp || params.boxId
   const [box, setBox] = useState(null)
   const [items, setItems] = useState([])
@@ -28,54 +32,63 @@ function BoxDetails({ boxId: boxIdProp, onClose, onEdit, hideBackLink = false })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    const fetchDetails = async () => {
-      setLoading(true)
-      setError('')
+  const fetchDetails = useCallback(async () => {
+    setLoading(true)
+    setError('')
 
-      try {
-        const { data: boxData, error: boxError } = await supabase
-          .from('boxes')
-          .select('*')
-          .eq('id', boxId)
-          .single()
+    try {
+      const { data: boxData, error: boxError } = await supabase
+        .from('boxes')
+        .select('*')
+        .eq('id', boxId)
+        .single()
 
-        if (boxError) {
-          throw boxError
-        }
-
-        const { data: itemData, error: itemError } = await supabase
-          .from('box_items')
-          .select('*')
-          .eq('box_id', boxId)
-          .order('content', { ascending: true })
-
-        if (itemError) {
-          throw itemError
-        }
-
-        const { data: tagData, error: tagError } = await supabase
-          .from('box_tags')
-          .select('tag')
-          .eq('box_id', boxId)
-          .order('tag', { ascending: true })
-
-        if (tagError) {
-          throw tagError
-        }
-
-        setBox(boxData)
-        setItems(itemData || [])
-        setTags((tagData || []).map((tagRow) => tagRow.tag))
-      } catch (fetchError) {
-        setError(fetchError.message || 'Could not load box details.')
-      } finally {
-        setLoading(false)
+      if (boxError) {
+        throw boxError
       }
+
+      const { data: itemData, error: itemError } = await supabase
+        .from('box_items')
+        .select('*')
+        .eq('box_id', boxId)
+        .order('content', { ascending: true })
+
+      if (itemError) {
+        throw itemError
+      }
+
+      const { data: tagData, error: tagError } = await supabase
+        .from('box_tags')
+        .select('tag')
+        .eq('box_id', boxId)
+        .order('tag', { ascending: true })
+
+      if (tagError) {
+        throw tagError
+      }
+
+      setBox(boxData)
+      setItems(itemData || [])
+      setTags((tagData || []).map((tagRow) => tagRow.tag))
+    } catch (fetchError) {
+      setError(fetchError.message || 'Could not load box details.')
+    } finally {
+      setLoading(false)
+    }
+  }, [boxId])
+
+  useEffect(() => {
+    fetchDetails()
+  }, [fetchDetails])
+
+  const handleEditClick = () => {
+    if (onEdit) {
+      onEdit({ box, items, tags })
+      return
     }
 
-    fetchDetails()
-  }, [boxId])
+    navigate(`/boxes/${boxId}/edit`)
+  }
 
   if (loading) {
     return (
@@ -180,7 +193,7 @@ function BoxDetails({ boxId: boxIdProp, onClose, onEdit, hideBackLink = false })
         </CardContent>
 
         <CardActions sx={{ justifyContent: 'flex-end', px: 2, pb: 2 }}>
-          <Button variant="contained" disabled={!onEdit} onClick={() => onEdit?.({ box, items, tags })}>
+          <Button variant="contained" onClick={handleEditClick}>
             Edit
           </Button>
           {onClose ? (
@@ -195,6 +208,7 @@ function BoxDetails({ boxId: boxIdProp, onClose, onEdit, hideBackLink = false })
          
         </CardActions>
       </Card>
+
     </Container>
   )
 }

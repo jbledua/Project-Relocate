@@ -4,6 +4,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Typography from '@mui/material/Typography'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import AuthPage from './pages/AuthPage'
+import BoxEditPage from './pages/BoxEditPage'
 import BoxDetails from './pages/BoxDetails'
 import Home from './pages/Home'
 import { supabase } from './lib/supabaseClient'
@@ -78,6 +79,7 @@ function App() {
         <Route element={<ProtectedRoute session={session} />}>
           <Route path="/" element={<Home user={session?.user} onSignOut={handleSignOut} />} />
           <Route path="/boxes/:boxId" element={<BoxDetails />} />
+          <Route path="/boxes/:boxId/edit" element={<BoxEditPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to={session ? '/' : '/auth'} replace />} />
