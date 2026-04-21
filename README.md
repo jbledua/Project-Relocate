@@ -133,9 +133,11 @@ Set the correct base path in `vite.config.js`:
 
 ```js
 export default {
-  base: '/Project-Relocate/',
+  base: '/',
 }
 ```
+
+For this repo's GitHub Actions deployment, the workflow builds with `--base=/` for the custom domain `moving.ledua.ca`.
 
 Then deploy using:
 
