@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Alert from '@mui/material/Alert'
+import AppBar from '@mui/material/AppBar'
+import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
@@ -13,11 +15,13 @@ import Grid from '@mui/material/Grid'
 import IconButton from '@mui/material/IconButton'
 import InputLabel from '@mui/material/InputLabel'
 import InputAdornment from '@mui/material/InputAdornment'
+import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
 import Select from '@mui/material/Select'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
+import Toolbar from '@mui/material/Toolbar'
 import Typography from '@mui/material/Typography'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { useNavigate } from 'react-router-dom'
@@ -38,6 +42,11 @@ function Home({ user, onSignOut }) {
   const [selectedBoxId, setSelectedBoxId] = useState('')
   const [editPayload, setEditPayload] = useState(null)
   const [authError, setAuthError] = useState('')
+  const [accountMenuAnchor, setAccountMenuAnchor] = useState(null)
+
+  const accountDisplayName =
+    user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || 'Unknown account'
+  const accountInitial = String(accountDisplayName).trim().charAt(0).toUpperCase() || 'A'
 
   const handleSignOutClick = async () => {
     setAuthError('')
@@ -51,6 +60,19 @@ function Home({ user, onSignOut }) {
     } catch (signOutError) {
       setAuthError(signOutError.message || 'Could not sign out.')
     }
+  }
+
+  const handleOpenAccountMenu = (event) => {
+    setAccountMenuAnchor(event.currentTarget)
+  }
+
+  const handleCloseAccountMenu = () => {
+    setAccountMenuAnchor(null)
+  }
+
+  const handleSignOutFromMenu = async () => {
+    handleCloseAccountMenu()
+    await handleSignOutClick()
   }
 
   const attachTagsToBoxes = useCallback(async (boxList) => {
@@ -362,26 +384,49 @@ function Home({ user, onSignOut }) {
   }, [fetchBoxes])
 
   return (
-    <Container maxWidth="md" sx={{ py: 3 }}>
-      <Stack spacing={2}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1.5}>
-          <Box>
-            <Typography variant="h4" component="h1" gutterBottom>
-              Project-Relocate
-            </Typography>
-            <Typography color="text.secondary">
-              Track boxes, contents, and notes while moving.
+    <>
+      <AppBar position="sticky" color="primary" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Toolbar sx={{ minHeight: { xs: 64, sm: 72 } }}>
+          <Box sx={{ flexGrow: 1 }}>
+            <Typography variant="h6" component="h1" sx={{ lineHeight: 1.2 }}>
+              Relocate
             </Typography>
           </Box>
 
-          <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}>
-            {user?.email ? <Typography color="text.secondary">{user.email}</Typography> : null}
-            <Button variant="outlined" onClick={handleSignOutClick}>
-              Sign out
-            </Button>
-          </Stack>
-        </Stack>
+          <IconButton
+            aria-label="Account menu"
+            aria-controls={accountMenuAnchor ? 'account-menu' : undefined}
+            aria-haspopup="true"
+            aria-expanded={accountMenuAnchor ? 'true' : undefined}
+            onClick={handleOpenAccountMenu}
+            size="small"
+          >
+            <Avatar sx={{ width: 36, height: 36 }}>{accountInitial}</Avatar>
+          </IconButton>
 
+          <Menu
+            id="account-menu"
+            anchorEl={accountMenuAnchor}
+            open={Boolean(accountMenuAnchor)}
+            onClose={handleCloseAccountMenu}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          >
+            <MenuItem disabled sx={{ opacity: 1 }}>
+              <Stack spacing={0.25}>
+                <Typography variant="caption" color="text.secondary">
+                  Signed in as
+                </Typography>
+                <Typography variant="body2">{accountDisplayName}</Typography>
+              </Stack>
+            </MenuItem>
+            <MenuItem onClick={handleSignOutFromMenu}>Sign out</MenuItem>
+          </Menu>
+        </Toolbar>
+      </AppBar>
+
+      <Container maxWidth="md" sx={{ py: 3 }}>
+      <Stack spacing={2}>
         {authError ? <Alert severity="error">{authError}</Alert> : null}
 
         <Paper variant="outlined" sx={{ p: 2 }}>
@@ -530,7 +575,8 @@ function Home({ user, onSignOut }) {
           </DialogContent>
         </Dialog>
       </Stack>
-    </Container>
+      </Container>
+    </>
   )
 }
 
