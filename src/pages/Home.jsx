@@ -68,6 +68,32 @@ function Home() {
     }))
   }, [])
 
+  const attachItemCountToBoxes = useCallback(async (boxList) => {
+    if (!boxList || boxList.length === 0) {
+      return []
+    }
+
+    const boxIds = boxList.map((box) => box.id)
+    const { data: itemRows, error: itemError } = await supabase
+      .from('box_items')
+      .select('box_id')
+      .in('box_id', boxIds)
+
+    if (itemError) {
+      throw itemError
+    }
+
+    const itemCountByBoxId = (itemRows || []).reduce((acc, row) => {
+      acc[row.box_id] = (acc[row.box_id] || 0) + 1
+      return acc
+    }, {})
+
+    return boxList.map((box) => ({
+      ...box,
+      itemCount: itemCountByBoxId[box.id] || 0,
+    }))
+  }, [])
+
   const handleOpenForm = () => {
     setIsFormOpen(true)
   }
@@ -284,7 +310,8 @@ function Home() {
         }
 
         const boxesWithTags = await attachTagsToBoxes(data || [])
-        setBoxes(boxesWithTags)
+        const boxesWithTagsAndItemCount = await attachItemCountToBoxes(boxesWithTags)
+        setBoxes(boxesWithTagsAndItemCount)
         return
       }
 
@@ -334,14 +361,15 @@ function Home() {
       }
 
       const boxesWithTags = await attachTagsToBoxes(matchedBoxes || [])
-      setBoxes(boxesWithTags)
+      const boxesWithTagsAndItemCount = await attachItemCountToBoxes(boxesWithTags)
+      setBoxes(boxesWithTagsAndItemCount)
     } catch (fetchError) {
       setError(fetchError.message || 'Could not load boxes.')
       setBoxes([])
     } finally {
       setLoading(false)
     }
-  }, [attachTagsToBoxes, searchTerm])
+  }, [attachItemCountToBoxes, attachTagsToBoxes, searchTerm])
 
   useEffect(() => {
     fetchBoxes()

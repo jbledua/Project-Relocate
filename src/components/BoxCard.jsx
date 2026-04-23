@@ -10,28 +10,43 @@ function BoxCard({ box, onClick, to }) {
   const actionProps = onClick
     ? { component: 'button', onClick, type: 'button' }
     : { component: RouterLink, to: to || `/boxes/${box.id}` }
+  const itemCount = box.itemCount || 0
+  const hasNotes = Boolean((box.notes || '').trim())
+  const tags = Array.isArray(box.tags) ? box.tags : []
+  const visibleTags = tags.slice(0, 3)
+  const hiddenTagCount = Math.max(tags.length - visibleTags.length, 0)
 
   return (
-    <Card variant="outlined">
-      <CardActionArea {...actionProps}>
-        <CardContent>
+    <Card variant="outlined" sx={{ height: '100%' }}>
+      <CardActionArea {...actionProps} sx={{ height: '100%' }}>
+        <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           <Typography variant="h6" component="h3" gutterBottom>
-            {box.box_number}
+            <strong>{box.box_number}</strong> {box.room || 'N/A'}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            <strong>Room:</strong> {box.room || 'N/A'}
+          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+            {itemCount > 0 ? `${itemCount} ${itemCount === 1 ? 'item' : 'items'}` : 'No content'}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            <strong>Label:</strong> {box.label || 'N/A'}
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            noWrap
+            title={hasNotes ? box.notes : ''}
+            sx={{ minHeight: 20 }}
+          >
+            {hasNotes ? `${box.notes}` : ''}
           </Typography>
 
-          {box.tags && box.tags.length > 0 ? (
-            <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
-              {box.tags.map((tag) => (
-                <Chip key={`${box.id}-${tag}`} label={tag} size="small" />
-              ))}
-            </Stack>
-          ) : null}
+          <Stack
+            direction="row"
+            spacing={0.75}
+            useFlexGap
+            sx={{ mt: 1, minHeight: 24, alignItems: 'center', flexWrap: 'nowrap', overflow: 'hidden' }}
+          >
+            {visibleTags.map((tag) => (
+              <Chip key={`${box.id}-${tag}`} label={tag} size="small" />
+            ))}
+            {hiddenTagCount > 0 ? <Chip label={`+${hiddenTagCount}`} size="small" /> : null}
+          </Stack>
         </CardContent>
       </CardActionArea>
     </Card>
