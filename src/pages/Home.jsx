@@ -37,6 +37,7 @@ function Home() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedBoxId, setSelectedBoxId] = useState('')
   const [editPayload, setEditPayload] = useState(null)
+  const boxCountLabel = `${boxes.length} ${boxes.length === 1 ? 'box' : 'boxes'}`
 
   const attachTagsToBoxes = useCallback(async (boxList) => {
     if (!boxList || boxList.length === 0) {
@@ -412,7 +413,7 @@ function Home() {
 
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="h6" component="h2" sx={{ mb: 2 }}>
-            Results
+            Results {boxes.length > 0 ? `(${boxCountLabel})` : ''}
           </Typography>
 
           {loading ? (
