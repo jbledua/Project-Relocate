@@ -21,6 +21,7 @@ import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import { getTagChipSx } from '../lib/tagColor'
 
 function BoxDetails({ boxId: boxIdProp, onClose, onEdit, hideBackLink = false }) {
   const params = useParams()
@@ -165,7 +166,7 @@ function BoxDetails({ boxId: boxIdProp, onClose, onEdit, hideBackLink = false })
             {tags.length > 0 && (
               <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
                 {tags.map((tag) => (
-                  <Chip key={tag} label={tag} size="small" />
+                  <Chip key={tag} label={tag} size="small" sx={getTagChipSx(tag)} />
                 ))}
               </Stack>
             )}

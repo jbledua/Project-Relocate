@@ -5,6 +5,7 @@ import Chip from '@mui/material/Chip'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { Link as RouterLink } from 'react-router-dom'
+import { getTagChipSx } from '../lib/tagColor'
 
 function BoxCard({ box, onClick, to }) {
   const actionProps = onClick
@@ -43,7 +44,7 @@ function BoxCard({ box, onClick, to }) {
             sx={{ mt: 1, minHeight: 24, alignItems: 'center', flexWrap: 'nowrap', overflow: 'hidden' }}
           >
             {visibleTags.map((tag) => (
-              <Chip key={`${box.id}-${tag}`} label={tag} size="small" />
+              <Chip key={`${box.id}-${tag}`} label={tag} size="small" sx={getTagChipSx(tag)} />
             ))}
             {hiddenTagCount > 0 ? <Chip label={`+${hiddenTagCount}`} size="small" /> : null}
           </Stack>
