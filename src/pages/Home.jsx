@@ -143,6 +143,11 @@ function Home({ activeGroupId, activeGroup }) {
     handleCloseEdit()
   }
 
+  const handleBoxDeleted = async () => {
+    await fetchBoxes()
+    handleCloseEdit()
+  }
+
   const clearAllFilters = () => {
     setSearchTerm('')
     setFilterInsert('')
@@ -549,10 +554,13 @@ function Home({ activeGroupId, activeGroup }) {
                   room: editPayload.box.room || '',
                   notes: editPayload.box.notes || '',
                   photo_url: editPayload.box.photo_url || '',
+                  owner_id: editPayload.box.owner_id || '',
+                  group_id: editPayload.box.group_id || '',
                   contents: (editPayload.items || []).map((item) => item.content),
                   tags: editPayload.tags || [],
                 }}
                 onSaved={handleBoxUpdated}
+                onDeleted={handleBoxDeleted}
                 onCancel={handleCloseEdit}
               />
             ) : null}

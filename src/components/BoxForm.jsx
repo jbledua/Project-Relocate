@@ -45,7 +45,22 @@ const buildFormData = (initialValues) => {
   }
 }
 
-function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initialValues, groupId }) {
+const getBoxPhotoStoragePath = (photoUrl) => {
+  if (!photoUrl) {
+    return ''
+  }
+
+  const marker = '/box-photos/'
+  const markerIndex = photoUrl.indexOf(marker)
+
+  if (markerIndex === -1) {
+    return ''
+  }
+
+  return decodeURIComponent(photoUrl.slice(markerIndex + marker.length))
+}
+
+function BoxForm({ onCreated, onSaved, onDeleted, onCancel, mode = 'create', boxId, initialValues, groupId }) {
   const [formData, setFormData] = useState(initialForm)
   const [roomOptions, setRoomOptions] = useState([])
   const [tagOptions, setTagOptions] = useState(defaultTagOptions)
@@ -54,6 +69,8 @@ function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initial
   const [existingPhotoUrl, setExistingPhotoUrl] = useState('')
   const [removePhoto, setRemovePhoto] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [canDeleteBox, setCanDeleteBox] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -68,6 +85,69 @@ function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initial
       setRemovePhoto(false)
     }
   }, [initialValues, mode])
+
+  useEffect(() => {
+    let isActive = true
+
+    const resolveDeleteAccess = async () => {
+      if (mode !== 'edit' || !boxId) {
+        if (isActive) {
+          setCanDeleteBox(false)
+        }
+        return
+      }
+
+      const boxOwnerId = initialValues?.owner_id || ''
+      const resolvedGroupId = initialValues?.group_id || groupId || ''
+
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      if (userError || !userData?.user?.id) {
+        if (isActive) {
+          setCanDeleteBox(false)
+        }
+        return
+      }
+
+      const currentUserId = userData.user.id
+
+      if (boxOwnerId && boxOwnerId === currentUserId) {
+        if (isActive) {
+          setCanDeleteBox(true)
+        }
+        return
+      }
+
+      if (!resolvedGroupId) {
+        if (isActive) {
+          setCanDeleteBox(false)
+        }
+        return
+      }
+
+      const { data: groupRow, error: groupError } = await supabase
+        .from('groups')
+        .select('owner_id')
+        .eq('id', resolvedGroupId)
+        .maybeSingle()
+
+      if (groupError) {
+        if (isActive) {
+          setCanDeleteBox(false)
+        }
+        return
+      }
+
+      if (isActive) {
+        setCanDeleteBox(groupRow?.owner_id === currentUserId)
+      }
+    }
+
+    resolveDeleteAccess()
+
+    return () => {
+      isActive = false
+    }
+  }, [boxId, groupId, initialValues?.group_id, initialValues?.owner_id, mode])
 
   useEffect(() => {
     if (!photoFile) {
@@ -155,6 +235,44 @@ function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initial
     setError('')
     setPhotoFile(selectedFile)
     setRemovePhoto(false)
+  }
+
+  const handleDeleteBox = async () => {
+    if (!boxId || !canDeleteBox) {
+      return
+    }
+
+    const confirmed = window.confirm('Delete this box? This cannot be undone.')
+    if (!confirmed) {
+      return
+    }
+
+    setIsDeleting(true)
+    setError('')
+
+    try {
+      const { error: deleteError } = await supabase.from('boxes').delete().eq('id', boxId)
+
+      if (deleteError) {
+        throw deleteError
+      }
+
+      const photoStoragePath = getBoxPhotoStoragePath(existingPhotoUrl || initialValues?.photo_url || '')
+      if (photoStoragePath) {
+        const { error: storageError } = await supabase.storage.from('box-photos').remove([photoStoragePath])
+        if (storageError) {
+          console.warn('Could not remove box photo from storage.', storageError.message)
+        }
+      }
+
+      if (onDeleted) {
+        onDeleted()
+      }
+    } catch (deleteError) {
+      setError(deleteError.message || 'Could not delete box.')
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   const handleSubmit = async (event) => {
@@ -483,14 +601,20 @@ function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initial
 
         {error ? <Alert severity="error">{error}</Alert> : null}
 
-        <Stack direction="row" spacing={1} justifyContent="flex-end">
+        <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ alignItems: 'center' }}>
+          {mode === 'edit' && canDeleteBox ? (
+            <Button type="button" variant="outlined" color="error" onClick={handleDeleteBox} disabled={isSubmitting || isDeleting} sx={{ mr: 'auto' }}>
+              {isDeleting ? 'Deleting...' : 'Delete box'}
+            </Button>
+          ) : null}
+
           {onCancel ? (
-            <Button type="button" variant="outlined" onClick={onCancel} disabled={isSubmitting}>
+            <Button type="button" variant="outlined" onClick={onCancel} disabled={isSubmitting || isDeleting}>
               Cancel
             </Button>
           ) : null}
 
-          <Button type="submit" variant="contained" disabled={isSubmitting}>
+          <Button type="submit" variant="contained" disabled={isSubmitting || isDeleting}>
             {isSubmitting ? 'Saving...' : mode === 'edit' ? 'Save changes' : 'Save box'}
           </Button>
         </Stack>

@@ -73,6 +73,10 @@ function BoxEditPage() {
     navigate(`/boxes/${boxId}`)
   }
 
+  const handleDeleted = () => {
+    navigate('/')
+  }
+
   if (loading) {
     return (
       <Container maxWidth="sm" sx={{ py: 3 }}>
@@ -129,10 +133,13 @@ function BoxEditPage() {
           room: box.room || '',
           notes: box.notes || '',
           photo_url: box.photo_url || '',
+          owner_id: box.owner_id || '',
+          group_id: box.group_id || '',
           contents: items.map((item) => item.content),
           tags,
         }}
         onSaved={handleSaved}
+        onDeleted={handleDeleted}
         onCancel={() => navigate(`/boxes/${boxId}`)}
       />
     </Container>
