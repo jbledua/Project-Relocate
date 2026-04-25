@@ -17,6 +17,7 @@ import AuthPage from './pages/AuthPage'
 import BoxEditPage from './pages/BoxEditPage'
 import BoxDetails from './pages/BoxDetails'
 import Home from './pages/Home'
+import SettingsPage from './pages/SettingsPage'
 import { supabase } from './lib/supabaseClient'
 import './App.css'
 
@@ -155,6 +156,9 @@ function App() {
                     <Typography variant="body2">{accountDisplayName}</Typography>
                   </Stack>
                 </MenuItem>
+                <MenuItem component={RouterLink} to="/settings" onClick={handleCloseAccountMenu}>
+                  Settings
+                </MenuItem>
                 <MenuItem onClick={handleSignOutClick}>Sign out</MenuItem>
               </Menu>
             </>
@@ -179,6 +183,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/boxes/:boxId" element={<BoxDetails />} />
           <Route path="/boxes/:boxId/edit" element={<BoxEditPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to={session ? '/' : '/auth'} replace />} />
