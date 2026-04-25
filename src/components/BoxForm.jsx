@@ -214,6 +214,12 @@ function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initial
           throw deleteTagsError
         }
       } else {
+        const { data: currentUserData, error: userError } = await supabase.auth.getUser()
+
+        if (userError) {
+          throw userError
+        }
+
         const { data: newBox, error: boxError } = await supabase
           .from('boxes')
           .insert({
@@ -221,6 +227,7 @@ function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initial
             room: normalizedRoom,
             label: derivedLabel,
             notes: formData.notes.trim() || null,
+            owner_id: currentUserData?.user?.id || null,
           })
           .select()
           .single()

@@ -12,8 +12,12 @@ create table if not exists public.boxes (
   label text,
   notes text,
   photo_url text,
+  owner_id uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
+
+alter table public.boxes
+  add column if not exists owner_id uuid references auth.users(id) on delete set null;
 
 -- Box items table
 create table if not exists public.box_items (
@@ -34,6 +38,7 @@ create table if not exists public.box_tags (
 
 -- Helpful indexes for your current searches
 create index if not exists idx_boxes_box_number on public.boxes (box_number);
+create index if not exists idx_boxes_owner_id on public.boxes (owner_id);
 create index if not exists idx_box_items_box_id on public.box_items (box_id);
 create index if not exists idx_box_items_content on public.box_items (content);
 create index if not exists idx_box_tags_box_id on public.box_tags (box_id);

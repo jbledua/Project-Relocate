@@ -73,6 +73,41 @@ function SettingsPage() {
     return parsed
   }
 
+  const assignCurrentUserToUnownedBoxes = async () => {
+    setBusyAction('assign-owner')
+    setError('')
+    setSuccess('')
+
+    try {
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+
+      if (userError) {
+        throw userError
+      }
+
+      const userId = userData?.user?.id
+      if (!userId) {
+        throw new Error('No signed-in user was found.')
+      }
+
+      const { data: updatedBoxes, error: updateError } = await supabase
+        .from('boxes')
+        .update({ owner_id: userId })
+        .is('owner_id', null)
+        .select('id')
+
+      if (updateError) {
+        throw updateError
+      }
+
+      setSuccess(`Assigned owner to ${(updatedBoxes || []).length} unowned box${(updatedBoxes || []).length === 1 ? '' : 'es'}.`)
+    } catch (ownerError) {
+      setError(ownerError.message || 'Could not assign owners to boxes.')
+    } finally {
+      setBusyAction('')
+    }
+  }
+
   const createBackup = async () => {
     setBusyAction('create')
     setError('')
@@ -81,7 +116,7 @@ function SettingsPage() {
     try {
       const { data: boxes, error: boxError } = await supabase
         .from('boxes')
-        .select('id, box_number, room, label, notes, photo_url, created_at')
+        .select('id, box_number, room, label, notes, photo_url, owner_id, created_at')
         .order('box_number', { ascending: true })
 
       if (boxError) {
@@ -156,6 +191,7 @@ function SettingsPage() {
         'label',
         'notes',
         'photo_url',
+        'owner_id',
         'created_at',
       ]).filter((row) => row.id && row.box_number)
 
@@ -298,8 +334,17 @@ function SettingsPage() {
               </Button>
             </Stack>
 
+            <Button
+              variant="text"
+              onClick={assignCurrentUserToUnownedBoxes}
+              disabled={isBusy}
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              Assign me to unowned boxes
+            </Button>
+
             <Typography variant="caption" color="text.secondary">
-              Restoring a backup replaces all current boxes, items, and tags.
+              Restoring a backup replaces all current boxes, items, and tags. The owner assignment action only fills in missing owners.
             </Typography>
           </Stack>
         </Paper>
