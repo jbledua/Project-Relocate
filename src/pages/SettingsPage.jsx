@@ -277,54 +277,87 @@ function SettingsPage() {
     setSuccess('')
 
     try {
-      const { data: boxes, error: boxError } = await supabase
-        .from('boxes')
-        .select('id, box_number, room, label, notes, photo_url, owner_id, group_id, created_at')
-        .order('box_number', { ascending: true })
+      const { data: userData, error: userError } = await supabase.auth.getUser()
 
-      if (boxError) {
-        throw boxError
+      if (userError) {
+        throw userError
       }
 
-      const { data: boxItems, error: itemError } = await supabase
-        .from('box_items')
-        .select('id, box_id, content, created_at')
-        .order('created_at', { ascending: true })
-
-      if (itemError) {
-        throw itemError
-      }
-
-      const { data: boxTags, error: tagError } = await supabase
-        .from('box_tags')
-        .select('id, box_id, tag, created_at')
-        .order('created_at', { ascending: true })
-
-      if (tagError) {
-        throw tagError
+      const userId = userData?.user?.id
+      if (!userId) {
+        throw new Error('No signed-in user was found.')
       }
 
       const { data: groupsData, error: groupsError } = await supabase
         .from('groups')
         .select('id, name, owner_id, join_code, created_at')
+        .eq('owner_id', userId)
         .order('created_at', { ascending: true })
 
       if (groupsError) {
         throw groupsError
       }
 
-      const { data: groupMembers, error: membersError } = await supabase
-        .from('group_members')
-        .select('id, group_id, user_id, email, role, invited_by, created_at')
-        .order('created_at', { ascending: true })
+      const ownedGroupIds = (groupsData || []).map((row) => row.id)
+
+      const { data: boxes, error: boxError } = ownedGroupIds.length > 0
+        ? await supabase
+          .from('boxes')
+          .select('id, box_number, room, label, notes, photo_url, owner_id, group_id, created_at')
+          .in('group_id', ownedGroupIds)
+          .order('box_number', { ascending: true })
+        : { data: [], error: null }
+
+      if (boxError) {
+        throw boxError
+      }
+
+      const boxIds = (boxes || []).map((row) => row.id)
+
+      const { data: boxItems, error: itemError } = boxIds.length > 0
+        ? await supabase
+          .from('box_items')
+          .select('id, box_id, content, created_at')
+          .in('box_id', boxIds)
+          .order('created_at', { ascending: true })
+        : { data: [], error: null }
+
+      if (itemError) {
+        throw itemError
+      }
+
+      const { data: boxTags, error: tagError } = boxIds.length > 0
+        ? await supabase
+          .from('box_tags')
+          .select('id, box_id, tag, created_at')
+          .in('box_id', boxIds)
+          .order('created_at', { ascending: true })
+        : { data: [], error: null }
+
+      if (tagError) {
+        throw tagError
+      }
+
+      const { data: groupMembers, error: membersError } = ownedGroupIds.length > 0
+        ? await supabase
+          .from('group_members')
+          .select('id, group_id, user_id, email, role, invited_by, created_at')
+          .in('group_id', ownedGroupIds)
+          .order('created_at', { ascending: true })
+        : { data: [], error: null }
 
       if (membersError) {
         throw membersError
       }
 
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, email, display_name, avatar_url, created_at, updated_at')
+      const memberUserIds = [...new Set((groupMembers || []).map((row) => row.user_id).filter(Boolean))]
+
+      const { data: profilesData, error: profilesError } = memberUserIds.length > 0
+        ? await supabase
+          .from('profiles')
+          .select('id, email, display_name, avatar_url, created_at, updated_at')
+          .in('id', memberUserIds)
+        : { data: [], error: null }
 
       if (profilesError) {
         throw profilesError
@@ -374,7 +407,28 @@ function SettingsPage() {
     setSuccess('')
 
     try {
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+
+      if (userError) {
+        throw userError
+      }
+
+      const userId = userData?.user?.id
+      if (!userId) {
+        throw new Error('No signed-in user was found.')
+      }
+
       const parsedBackup = await readBackupFile(file)
+
+      const normalizedGroups = normalizeBackupRows(parsedBackup.data.groups, [
+        'id',
+        'name',
+        'owner_id',
+        'join_code',
+        'created_at',
+      ]).filter((row) => row.id && row.name && row.owner_id === userId)
+
+      const groupIds = new Set(normalizedGroups.map((row) => row.id))
 
       const normalizedBoxes = normalizeBackupRows(parsedBackup.data.boxes, [
         'id',
@@ -386,7 +440,7 @@ function SettingsPage() {
         'owner_id',
         'group_id',
         'created_at',
-      ]).filter((row) => row.id && row.box_number)
+      ]).filter((row) => row.id && row.box_number && row.group_id && groupIds.has(row.group_id))
 
       const boxIds = new Set(normalizedBoxes.map((row) => row.id))
 
@@ -414,9 +468,23 @@ function SettingsPage() {
         return true
       })
 
-      const { data: existingBoxes, error: existingBoxesError } = await supabase
-        .from('boxes')
+      const { data: existingOwnedGroups, error: existingOwnedGroupsError } = await supabase
+        .from('groups')
         .select('id')
+        .eq('owner_id', userId)
+
+      if (existingOwnedGroupsError) {
+        throw existingOwnedGroupsError
+      }
+
+      const existingOwnedGroupIds = (existingOwnedGroups || []).map((row) => row.id)
+
+      const { data: existingBoxes, error: existingBoxesError } = existingOwnedGroupIds.length > 0
+        ? await supabase
+          .from('boxes')
+          .select('id')
+          .in('group_id', existingOwnedGroupIds)
+        : { data: [], error: null }
 
       if (existingBoxesError) {
         throw existingBoxesError
@@ -435,34 +503,16 @@ function SettingsPage() {
         }
       }
 
-      const { data: existingGroups, error: existingGroupsError } = await supabase
-        .from('groups')
-        .select('id')
-
-      if (existingGroupsError) {
-        throw existingGroupsError
-      }
-
-      const existingGroupIds = (existingGroups || []).map((row) => row.id)
-
-      if (existingGroupIds.length > 0) {
+      if (existingOwnedGroupIds.length > 0) {
         const { error: deleteGroupsError } = await supabase
           .from('groups')
           .delete()
-          .in('id', existingGroupIds)
+          .in('id', existingOwnedGroupIds)
 
         if (deleteGroupsError) {
           throw deleteGroupsError
         }
       }
-
-      const normalizedGroups = normalizeBackupRows(parsedBackup.data.groups, [
-        'id',
-        'name',
-        'owner_id',
-        'join_code',
-        'created_at',
-      ]).filter((row) => row.id && row.name)
 
       const normalizedProfiles = normalizeBackupRows(parsedBackup.data.profiles, [
         'id',
@@ -483,7 +533,6 @@ function SettingsPage() {
         }
       }
 
-      const groupIds = new Set(normalizedGroups.map((row) => row.id))
       const normalizedGroupMembers = normalizeBackupRows(parsedBackup.data.group_members, [
         'id',
         'group_id',
@@ -655,7 +704,7 @@ function SettingsPage() {
                 Data backup
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Backup includes boxes, box items, and tags. Uploaded photos are not copied into the backup file.
+                Backup and restore are limited to groups you own and their related members, boxes, items, and tags. Uploaded photos are not copied into the backup file.
               </Typography>
             </Box>
 
@@ -695,7 +744,7 @@ function SettingsPage() {
             </Button>
 
             <Typography variant="caption" color="text.secondary">
-              Restoring a backup replaces all current boxes, items, and tags. The owner assignment action only fills in missing owners.
+              Restoring a backup replaces only your owned groups and their related boxes, items, and tags. The owner assignment action only fills in missing owners.
             </Typography>
           </Stack>
         </Paper>
