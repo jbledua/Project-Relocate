@@ -116,7 +116,7 @@ function SettingsPage() {
     try {
       const { data: boxes, error: boxError } = await supabase
         .from('boxes')
-        .select('id, box_number, room, label, notes, photo_url, owner_id, created_at')
+        .select('id, box_number, room, label, notes, photo_url, owner_id, group_id, created_at')
         .order('box_number', { ascending: true })
 
       if (boxError) {
@@ -141,6 +141,24 @@ function SettingsPage() {
         throw tagError
       }
 
+      const { data: groupsData, error: groupsError } = await supabase
+        .from('groups')
+        .select('id, name, owner_id, join_code, created_at')
+        .order('created_at', { ascending: true })
+
+      if (groupsError) {
+        throw groupsError
+      }
+
+      const { data: groupMembers, error: membersError } = await supabase
+        .from('group_members')
+        .select('id, group_id, user_id, role, invited_by, created_at')
+        .order('created_at', { ascending: true })
+
+      if (membersError) {
+        throw membersError
+      }
+
       const payload = {
         app: 'Project-Relocate',
         backupVersion: BACKUP_VERSION,
@@ -149,6 +167,8 @@ function SettingsPage() {
           boxes: boxes || [],
           box_items: boxItems || [],
           box_tags: boxTags || [],
+          groups: groupsData || [],
+          group_members: groupMembers || [],
         },
       }
 
@@ -170,7 +190,7 @@ function SettingsPage() {
     }
 
     const confirmed = window.confirm(
-      'Restore backup and replace all current boxes, items, and tags? This cannot be undone.',
+      'Restore backup and replace all current boxes, groups, memberships, items, and tags? This cannot be undone.',
     )
 
     if (!confirmed) {
@@ -192,6 +212,7 @@ function SettingsPage() {
         'notes',
         'photo_url',
         'owner_id',
+        'group_id',
         'created_at',
       ]).filter((row) => row.id && row.box_number)
 
@@ -239,6 +260,65 @@ function SettingsPage() {
 
         if (deleteError) {
           throw deleteError
+        }
+      }
+
+      const { data: existingGroups, error: existingGroupsError } = await supabase
+        .from('groups')
+        .select('id')
+
+      if (existingGroupsError) {
+        throw existingGroupsError
+      }
+
+      const existingGroupIds = (existingGroups || []).map((row) => row.id)
+
+      if (existingGroupIds.length > 0) {
+        const { error: deleteGroupsError } = await supabase
+          .from('groups')
+          .delete()
+          .in('id', existingGroupIds)
+
+        if (deleteGroupsError) {
+          throw deleteGroupsError
+        }
+      }
+
+      const normalizedGroups = normalizeBackupRows(parsedBackup.data.groups, [
+        'id',
+        'name',
+        'owner_id',
+        'join_code',
+        'created_at',
+      ]).filter((row) => row.id && row.name)
+
+      if (normalizedGroups.length > 0) {
+        const { error: insertGroupsError } = await supabase
+          .from('groups')
+          .insert(normalizedGroups)
+
+        if (insertGroupsError) {
+          throw insertGroupsError
+        }
+      }
+
+      const groupIds = new Set(normalizedGroups.map((row) => row.id))
+      const normalizedGroupMembers = normalizeBackupRows(parsedBackup.data.group_members, [
+        'id',
+        'group_id',
+        'user_id',
+        'role',
+        'invited_by',
+        'created_at',
+      ]).filter((row) => row.id && row.group_id && row.user_id && groupIds.has(row.group_id))
+
+      if (normalizedGroupMembers.length > 0) {
+        const { error: insertMembersError } = await supabase
+          .from('group_members')
+          .insert(normalizedGroupMembers)
+
+        if (insertMembersError) {
+          throw insertMembersError
         }
       }
 

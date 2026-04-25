@@ -45,7 +45,7 @@ const buildFormData = (initialValues) => {
   }
 }
 
-function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initialValues }) {
+function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initialValues, groupId }) {
   const [formData, setFormData] = useState(initialForm)
   const [roomOptions, setRoomOptions] = useState([])
   const [tagOptions, setTagOptions] = useState(defaultTagOptions)
@@ -228,6 +228,7 @@ function BoxForm({ onCreated, onSaved, onCancel, mode = 'create', boxId, initial
             label: derivedLabel,
             notes: formData.notes.trim() || null,
             owner_id: currentUserData?.user?.id || null,
+            group_id: groupId || null,
           })
           .select()
           .single()

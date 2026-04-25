@@ -18,6 +18,7 @@ import BoxEditPage from './pages/BoxEditPage'
 import BoxDetails from './pages/BoxDetails'
 import Home from './pages/Home'
 import SettingsPage from './pages/SettingsPage'
+import GroupsPage from './pages/GroupsPage'
 import { supabase } from './lib/supabaseClient'
 import './App.css'
 
@@ -34,6 +35,35 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [accountMenuAnchor, setAccountMenuAnchor] = useState(null)
   const [authError, setAuthError] = useState('')
+  const [activeGroupId, setActiveGroupId] = useState('')
+  const [activeGroup, setActiveGroup] = useState(null)
+
+  const getActiveGroupStorageKey = (userId) => `relocate-active-group:${userId}`
+
+  const clearActiveGroupSelection = (userId = session?.user?.id) => {
+    if (userId) {
+      window.localStorage.removeItem(getActiveGroupStorageKey(userId))
+    }
+
+    setActiveGroupId('')
+    setActiveGroup(null)
+  }
+
+  const handleSelectGroup = (groupOrId) => {
+    const nextGroupId = typeof groupOrId === 'string' ? groupOrId : groupOrId?.id || ''
+
+    if (!nextGroupId) {
+      clearActiveGroupSelection()
+      return
+    }
+
+    setActiveGroupId(nextGroupId)
+    setActiveGroup(typeof groupOrId === 'object' ? groupOrId : null)
+
+    if (session?.user?.id) {
+      window.localStorage.setItem(getActiveGroupStorageKey(session.user.id), nextGroupId)
+    }
+  }
 
   useEffect(() => {
     let isMounted = true
@@ -66,6 +96,65 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!session?.user?.id) {
+      setActiveGroupId('')
+      setActiveGroup(null)
+      return
+    }
+
+    const storedGroupId = window.localStorage.getItem(getActiveGroupStorageKey(session.user.id)) || ''
+    setActiveGroupId(storedGroupId)
+  }, [session?.user?.id])
+
+  useEffect(() => {
+    let isActive = true
+
+    const loadActiveGroup = async () => {
+      if (!session?.user?.id || !activeGroupId) {
+        if (isActive) {
+          setActiveGroup(null)
+        }
+        return
+      }
+
+      const { data: membership, error: membershipError } = await supabase
+        .from('group_members')
+        .select('id')
+        .eq('group_id', activeGroupId)
+        .eq('user_id', session.user.id)
+        .maybeSingle()
+
+      if (membershipError || !membership) {
+        clearActiveGroupSelection(session.user.id)
+        return
+      }
+
+      const { data: group, error: groupError } = await supabase
+        .from('groups')
+        .select('id, name, owner_id, join_code, created_at')
+        .eq('id', activeGroupId)
+        .maybeSingle()
+
+      if (!isActive) {
+        return
+      }
+
+      if (groupError || !group) {
+        clearActiveGroupSelection(session.user.id)
+        return
+      }
+
+      setActiveGroup(group)
+    }
+
+    loadActiveGroup()
+
+    return () => {
+      isActive = false
+    }
+  }, [activeGroupId, session?.user?.id])
+
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut()
     if (error) {
@@ -86,6 +175,7 @@ function App() {
     handleCloseAccountMenu()
 
     try {
+      clearActiveGroupSelection(session?.user?.id)
       await handleSignOut()
     } catch (signOutError) {
       setAuthError(signOutError.message || 'Could not sign out.')
@@ -156,6 +246,9 @@ function App() {
                     <Typography variant="body2">{accountDisplayName}</Typography>
                   </Stack>
                 </MenuItem>
+                <MenuItem component={RouterLink} to="/groups" onClick={handleCloseAccountMenu}>
+                  Groups
+                </MenuItem>
                 <MenuItem component={RouterLink} to="/settings" onClick={handleCloseAccountMenu}>
                   Settings
                 </MenuItem>
@@ -177,16 +270,30 @@ function App() {
       ) : null}
 
       <Routes>
-        <Route path="/auth" element={session ? <Navigate to="/" replace /> : <AuthPage />} />
+        <Route path="/auth" element={session ? <Navigate to="/groups" replace /> : <AuthPage />} />
 
         <Route element={<ProtectedRoute session={session} />}>
-          <Route path="/" element={<Home />} />
+          <Route
+            path="/"
+            element={activeGroupId ? <Home activeGroupId={activeGroupId} activeGroup={activeGroup} /> : <Navigate to="/groups" replace />}
+          />
           <Route path="/boxes/:boxId" element={<BoxDetails />} />
           <Route path="/boxes/:boxId/edit" element={<BoxEditPage />} />
+          <Route
+            path="/groups"
+            element={
+              <GroupsPage
+                session={session?.user}
+                activeGroupId={activeGroupId}
+                activeGroup={activeGroup}
+                onSelectGroup={handleSelectGroup}
+              />
+            }
+          />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
 
-        <Route path="*" element={<Navigate to={session ? '/' : '/auth'} replace />} />
+        <Route path="*" element={<Navigate to={session ? '/groups' : '/auth'} replace />} />
       </Routes>
     </BrowserRouter>
   )

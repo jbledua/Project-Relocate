@@ -4,6 +4,8 @@
 begin;
 
 -- Drop child tables first, then parent table.
+drop table if exists public.group_members cascade;
+drop table if exists public.groups cascade;
 drop table if exists public.box_tags cascade;
 drop table if exists public.box_items cascade;
 drop table if exists public.boxes cascade;

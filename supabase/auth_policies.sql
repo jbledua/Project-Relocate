@@ -4,6 +4,8 @@
 alter table public.boxes enable row level security;
 alter table public.box_items enable row level security;
 alter table public.box_tags enable row level security;
+alter table public.groups enable row level security;
+alter table public.group_members enable row level security;
 
 -- Remove legacy open-access policies if they exist.
 drop policy if exists boxes_select_all on public.boxes;
@@ -11,20 +13,60 @@ drop policy if exists boxes_insert_all on public.boxes;
 drop policy if exists boxes_update_all on public.boxes;
 drop policy if exists boxes_delete_all on public.boxes;
 
+drop policy if exists boxes_select_authenticated on public.boxes;
+drop policy if exists boxes_insert_authenticated on public.boxes;
+drop policy if exists boxes_update_authenticated on public.boxes;
+drop policy if exists boxes_delete_authenticated on public.boxes;
+
 drop policy if exists box_items_select_all on public.box_items;
 drop policy if exists box_items_insert_all on public.box_items;
 drop policy if exists box_items_update_all on public.box_items;
 drop policy if exists box_items_delete_all on public.box_items;
+
+drop policy if exists box_items_select_authenticated on public.box_items;
+drop policy if exists box_items_insert_authenticated on public.box_items;
+drop policy if exists box_items_update_authenticated on public.box_items;
+drop policy if exists box_items_delete_authenticated on public.box_items;
 
 drop policy if exists box_tags_select_all on public.box_tags;
 drop policy if exists box_tags_insert_all on public.box_tags;
 drop policy if exists box_tags_update_all on public.box_tags;
 drop policy if exists box_tags_delete_all on public.box_tags;
 
+drop policy if exists box_tags_select_authenticated on public.box_tags;
+drop policy if exists box_tags_insert_authenticated on public.box_tags;
+drop policy if exists box_tags_update_authenticated on public.box_tags;
+drop policy if exists box_tags_delete_authenticated on public.box_tags;
+
+drop policy if exists groups_select_all on public.groups;
+drop policy if exists groups_insert_all on public.groups;
+drop policy if exists groups_update_all on public.groups;
+drop policy if exists groups_delete_all on public.groups;
+
+drop policy if exists groups_select_authenticated on public.groups;
+drop policy if exists groups_insert_authenticated on public.groups;
+drop policy if exists groups_update_authenticated on public.groups;
+drop policy if exists groups_delete_authenticated on public.groups;
+
+drop policy if exists group_members_select_all on public.group_members;
+drop policy if exists group_members_insert_all on public.group_members;
+drop policy if exists group_members_update_all on public.group_members;
+drop policy if exists group_members_delete_all on public.group_members;
+
+drop policy if exists group_members_select_authenticated on public.group_members;
+drop policy if exists group_members_insert_authenticated on public.group_members;
+drop policy if exists group_members_update_authenticated on public.group_members;
+drop policy if exists group_members_delete_authenticated on public.group_members;
+
 drop policy if exists box_photos_select_all on storage.objects;
 drop policy if exists box_photos_insert_all on storage.objects;
 drop policy if exists box_photos_update_all on storage.objects;
 drop policy if exists box_photos_delete_all on storage.objects;
+
+drop policy if exists box_photos_select_public on storage.objects;
+drop policy if exists box_photos_insert_authenticated on storage.objects;
+drop policy if exists box_photos_update_authenticated on storage.objects;
+drop policy if exists box_photos_delete_authenticated on storage.objects;
 
 -- Authenticated users can read and modify app data.
 create policy boxes_select_authenticated on public.boxes
@@ -75,6 +117,40 @@ create policy box_tags_update_authenticated on public.box_tags
   with check (true);
 
 create policy box_tags_delete_authenticated on public.box_tags
+  for delete to authenticated
+  using (true);
+
+create policy groups_select_authenticated on public.groups
+  for select to authenticated
+  using (true);
+
+create policy groups_insert_authenticated on public.groups
+  for insert to authenticated
+  with check (true);
+
+create policy groups_update_authenticated on public.groups
+  for update to authenticated
+  using (true)
+  with check (true);
+
+create policy groups_delete_authenticated on public.groups
+  for delete to authenticated
+  using (true);
+
+create policy group_members_select_authenticated on public.group_members
+  for select to authenticated
+  using (true);
+
+create policy group_members_insert_authenticated on public.group_members
+  for insert to authenticated
+  with check (true);
+
+create policy group_members_update_authenticated on public.group_members
+  for update to authenticated
+  using (true)
+  with check (true);
+
+create policy group_members_delete_authenticated on public.group_members
   for delete to authenticated
   using (true);
 

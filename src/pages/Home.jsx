@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import AddIcon from '@mui/icons-material/Add'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Container from '@mui/material/Container'
 import Dialog from '@mui/material/Dialog'
@@ -20,13 +21,13 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import useMediaQuery from '@mui/material/useMediaQuery'
-import { useNavigate } from 'react-router-dom'
+import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import BoxCard from '../components/BoxCard'
 import BoxForm from '../components/BoxForm'
 import BoxDetails from './BoxDetails'
 import { supabase } from '../lib/supabaseClient'
 
-function Home() {
+function Home({ activeGroupId, activeGroup }) {
   const isDesktop = useMediaQuery('(min-width:900px)')
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
@@ -38,6 +39,14 @@ function Home() {
   const [selectedBoxId, setSelectedBoxId] = useState('')
   const [editPayload, setEditPayload] = useState(null)
   const boxCountLabel = `${boxes.length} ${boxes.length === 1 ? 'box' : 'boxes'}`
+
+  const applyGroupScope = useCallback((query) => {
+    if (!activeGroupId) {
+      return query.is('group_id', null)
+    }
+
+    return query.or(`group_id.is.null,group_id.eq.${activeGroupId}`)
+  }, [activeGroupId])
 
   const attachTagsToBoxes = useCallback(async (boxList) => {
     if (!boxList || boxList.length === 0) {
@@ -300,10 +309,12 @@ function Home() {
       const hasQuery = filters.length > 0 || Boolean(freeText)
 
       if (!hasQuery) {
-        const { data, error: listError } = await supabase
-          .from('boxes')
-          .select('*')
-          .order('box_number', { ascending: true })
+        const { data, error: listError } = await applyGroupScope(
+          supabase
+            .from('boxes')
+            .select('*')
+            .order('box_number', { ascending: true }),
+        )
 
         if (listError) {
           throw listError
@@ -350,11 +361,13 @@ function Home() {
         return
       }
 
-      const { data: matchedBoxes, error: matchedBoxError } = await supabase
-        .from('boxes')
-        .select('*')
-        .in('id', finalIds)
-        .order('box_number', { ascending: true })
+      const { data: matchedBoxes, error: matchedBoxError } = await applyGroupScope(
+        supabase
+          .from('boxes')
+          .select('*')
+          .in('id', finalIds)
+          .order('box_number', { ascending: true }),
+      )
 
       if (matchedBoxError) {
         throw matchedBoxError
@@ -369,7 +382,7 @@ function Home() {
     } finally {
       setLoading(false)
     }
-  }, [attachItemCountToBoxes, attachTagsToBoxes, searchTerm])
+  }, [activeGroupId, applyGroupScope, attachItemCountToBoxes, attachTagsToBoxes, searchTerm])
 
   useEffect(() => {
     fetchBoxes()
@@ -378,6 +391,27 @@ function Home() {
   return (
     <Container maxWidth="md" sx={{ py: 3 }}>
       <Stack spacing={2}>
+        {activeGroup ? (
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} justifyContent="space-between">
+              <Box>
+                <Typography variant="overline" color="text.secondary">
+                  Active group
+                </Typography>
+                <Typography variant="h6" component="h2">
+                  {activeGroup.name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  New boxes will be created in this group. Ungrouped boxes stay visible below.
+                </Typography>
+              </Box>
+
+              <Button component={RouterLink} to="/groups" variant="outlined">
+                Change group
+              </Button>
+            </Stack>
+          </Paper>
+        ) : null}
 
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Typography variant="h6" component="h2" sx={{ mb: 2 }}>
@@ -480,7 +514,7 @@ function Home() {
         <Dialog open={isFormOpen} onClose={handleCloseForm} fullWidth maxWidth="sm">
           <DialogTitle>Add a box</DialogTitle>
           <DialogContent>
-            <BoxForm onCreated={handleBoxCreated} />
+            <BoxForm onCreated={handleBoxCreated} groupId={activeGroupId} />
           </DialogContent>
         </Dialog>
 

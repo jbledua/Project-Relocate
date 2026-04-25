@@ -4,6 +4,26 @@
 -- Needed for gen_random_uuid()
 create extension if not exists pgcrypto;
 
+-- Groups table
+create table if not exists public.groups (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  join_code text not null unique,
+  created_at timestamptz not null default now()
+);
+
+-- Group members table
+create table if not exists public.group_members (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null references public.groups(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role text not null default 'member',
+  invited_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  constraint group_members_unique_group_user unique (group_id, user_id)
+);
+
 -- Boxes table
 create table if not exists public.boxes (
   id uuid primary key default gen_random_uuid(),
@@ -13,11 +33,15 @@ create table if not exists public.boxes (
   notes text,
   photo_url text,
   owner_id uuid references auth.users(id) on delete set null,
+  group_id uuid references public.groups(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
 alter table public.boxes
   add column if not exists owner_id uuid references auth.users(id) on delete set null;
+
+alter table public.boxes
+  add column if not exists group_id uuid references public.groups(id) on delete set null;
 
 -- Box items table
 create table if not exists public.box_items (
@@ -39,10 +63,15 @@ create table if not exists public.box_tags (
 -- Helpful indexes for your current searches
 create index if not exists idx_boxes_box_number on public.boxes (box_number);
 create index if not exists idx_boxes_owner_id on public.boxes (owner_id);
+create index if not exists idx_boxes_group_id on public.boxes (group_id);
 create index if not exists idx_box_items_box_id on public.box_items (box_id);
 create index if not exists idx_box_items_content on public.box_items (content);
 create index if not exists idx_box_tags_box_id on public.box_tags (box_id);
 create index if not exists idx_box_tags_tag on public.box_tags (tag);
+create index if not exists idx_groups_owner_id on public.groups (owner_id);
+create index if not exists idx_groups_join_code on public.groups (join_code);
+create index if not exists idx_group_members_group_id on public.group_members (group_id);
+create index if not exists idx_group_members_user_id on public.group_members (user_id);
 
 -- Storage bucket for box photos
 insert into storage.buckets (id, name, public)
@@ -54,6 +83,8 @@ on conflict (id) do nothing;
 alter table public.boxes enable row level security;
 alter table public.box_items enable row level security;
 alter table public.box_tags enable row level security;
+alter table public.groups enable row level security;
+alter table public.group_members enable row level security;
 
 do $$
 begin
@@ -171,5 +202,61 @@ begin
   ) then
     create policy box_photos_delete_all on storage.objects
       for delete using (bucket_id = 'box-photos');
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'groups' and policyname = 'groups_select_all'
+  ) then
+    create policy groups_select_all on public.groups for select using (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'groups' and policyname = 'groups_insert_all'
+  ) then
+    create policy groups_insert_all on public.groups for insert with check (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'groups' and policyname = 'groups_update_all'
+  ) then
+    create policy groups_update_all on public.groups for update using (true) with check (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'groups' and policyname = 'groups_delete_all'
+  ) then
+    create policy groups_delete_all on public.groups for delete using (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'group_members' and policyname = 'group_members_select_all'
+  ) then
+    create policy group_members_select_all on public.group_members for select using (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'group_members' and policyname = 'group_members_insert_all'
+  ) then
+    create policy group_members_insert_all on public.group_members for insert with check (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'group_members' and policyname = 'group_members_update_all'
+  ) then
+    create policy group_members_update_all on public.group_members for update using (true) with check (true);
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'group_members' and policyname = 'group_members_delete_all'
+  ) then
+    create policy group_members_delete_all on public.group_members for delete using (true);
   end if;
 end $$;
