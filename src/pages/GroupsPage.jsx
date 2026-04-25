@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Alert from '@mui/material/Alert'
+import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
@@ -19,9 +20,10 @@ import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import CloseIcon from '@mui/icons-material/Close'
+import Tooltip from '@mui/material/Tooltip'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
-import PersonIcon from '@mui/icons-material/Person'
+import DeleteIcon from '@mui/icons-material/Delete'
+import LoopIcon from '@mui/icons-material/Loop'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 
@@ -53,6 +55,9 @@ function GroupsPage({ session, activeGroupId, activeGroup, onSelectGroup }) {
   const [selectedGroupId, setSelectedGroupId] = useState(null)
   const [selectedGroupOpen, setSelectedGroupOpen] = useState(false)
   const [copiedCode, setCopiedCode] = useState('')
+  const [groupEditName, setGroupEditName] = useState('')
+  const [groupEditSaving, setGroupEditSaving] = useState(false)
+  const [removingMemberId, setRemovingMemberId] = useState('')
 
   const fetchGroups = useCallback(async () => {
     if (!session?.id) return
@@ -116,37 +121,81 @@ function GroupsPage({ session, activeGroupId, activeGroup, onSelectGroup }) {
   const fetchGroupDetails = useCallback(async (groupId) => {
     if (!groupId) return
 
-    try {
-      const { data: members, error: membersError } = await supabase
+    let members = []
+    let boxes = []
+
+    const { data: membersWithEmail, error: membersWithEmailError } = await supabase
+      .from('group_members')
+      .select('id, user_id, email, role, created_at')
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: true })
+
+    if (!membersWithEmailError) {
+      members = membersWithEmail || []
+    } else if (membersWithEmailError.code === '42703') {
+      // Backward-compatible fallback when the email column migration has not been applied yet.
+      const { data: membersLegacy, error: membersLegacyError } = await supabase
         .from('group_members')
         .select('id, user_id, role, created_at')
         .eq('group_id', groupId)
         .order('created_at', { ascending: true })
 
-      if (membersError) {
-        throw membersError
+      if (membersLegacyError) {
+        console.warn('Could not fetch members:', membersLegacyError.message)
+      } else {
+        members = (membersLegacy || []).map((member) => ({ ...member, email: null }))
       }
-
-      const { data: boxes, error: boxesError } = await supabase
-        .from('boxes')
-        .select('id, box_number, room')
-        .eq('group_id', groupId)
-        .order('box_number', { ascending: true })
-
-      if (boxesError) {
-        throw boxesError
-      }
-
-      setGroupDetails((prev) => ({
-        ...prev,
-        [groupId]: {
-          members: members || [],
-          boxes: boxes || [],
-        },
-      }))
-    } catch (err) {
-      console.warn('Could not fetch group details:', err.message)
+    } else {
+      console.warn('Could not fetch members:', membersWithEmailError.message)
     }
+
+    const memberUserIds = [...new Set(members.map((member) => member.user_id).filter(Boolean))]
+    const profileMap = {}
+
+    if (memberUserIds.length > 0) {
+      const { data: profileRows, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, email, display_name, avatar_url')
+        .in('id', memberUserIds)
+
+      if (profileError) {
+        console.warn('Could not fetch member profiles:', profileError.message)
+      } else {
+        ;(profileRows || []).forEach((profile) => {
+          profileMap[profile.id] = profile
+        })
+      }
+    }
+
+    members = members.map((member) => {
+      const profile = profileMap[member.user_id]
+      return {
+        ...member,
+        email: member.email || profile?.email || null,
+        display_name: profile?.display_name || null,
+        avatar_url: profile?.avatar_url || null,
+      }
+    })
+
+    const { data: groupBoxes, error: boxesError } = await supabase
+      .from('boxes')
+      .select('id, box_number, room')
+      .eq('group_id', groupId)
+      .order('box_number', { ascending: true })
+
+    if (boxesError) {
+      console.warn('Could not fetch boxes:', boxesError.message)
+    } else {
+      boxes = groupBoxes || []
+    }
+
+    setGroupDetails((prev) => ({
+      ...prev,
+      [groupId]: {
+        members,
+        boxes,
+      },
+    }))
   }, [])
 
   const handleCreateOpen = () => {
@@ -189,6 +238,7 @@ function GroupsPage({ session, activeGroupId, activeGroup, onSelectGroup }) {
         .insert({
           group_id: newGroup.id,
           user_id: session.id,
+          email: session.email || null,
           role: 'owner',
         })
 
@@ -263,6 +313,7 @@ function GroupsPage({ session, activeGroupId, activeGroup, onSelectGroup }) {
         .insert({
           group_id: targetGroup.id,
           user_id: session.id,
+          email: session.email || null,
           role: 'member',
         })
 
@@ -299,14 +350,151 @@ function GroupsPage({ session, activeGroupId, activeGroup, onSelectGroup }) {
     setTimeout(() => setCopiedCode(''), 2000)
   }
 
+  const handleSaveGroupDetails = async () => {
+    if (!selectedGroupData || !isSelectedGroupOwner) {
+      return
+    }
+
+    const trimmedName = groupEditName.trim()
+    if (!trimmedName) {
+      setError('Group name is required.')
+      return
+    }
+
+    setGroupEditSaving(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const { data: updatedGroup, error: updateError } = await supabase
+        .from('groups')
+        .update({ name: trimmedName })
+        .eq('id', selectedGroupData.id)
+        .select('id, name, owner_id, join_code, created_at')
+        .single()
+
+      if (updateError) {
+        throw updateError
+      }
+
+      setGroups((prevGroups) => prevGroups.map((group) => (group.id === updatedGroup.id ? updatedGroup : group)))
+      onSelectGroup?.(updatedGroup)
+      setSuccess('Group updated successfully.')
+    } catch (updateError) {
+      setError(updateError.message || 'Could not update group.')
+    } finally {
+      setGroupEditSaving(false)
+    }
+  }
+
+  const handleRotateJoinCode = async () => {
+    if (!selectedGroupData || !isSelectedGroupOwner) {
+      return
+    }
+
+    let nextJoinCode = generateJoinCode()
+    while (nextJoinCode === selectedGroupData.join_code) {
+      nextJoinCode = generateJoinCode()
+    }
+
+    setError('')
+    setSuccess('')
+
+    try {
+      const { data: updatedGroup, error: updateError } = await supabase
+        .from('groups')
+        .update({ join_code: nextJoinCode })
+        .eq('id', selectedGroupData.id)
+        .select('id, name, owner_id, join_code, created_at')
+        .single()
+
+      if (updateError) {
+        throw updateError
+      }
+
+      setGroups((prevGroups) => prevGroups.map((group) => (group.id === updatedGroup.id ? updatedGroup : group)))
+      onSelectGroup?.(updatedGroup)
+      setCopiedCode('')
+      setSuccess('Join code rotated successfully.')
+    } catch (rotateError) {
+      setError(rotateError.message || 'Could not rotate join code.')
+    }
+  }
+
+  const handleRemoveMember = async (member) => {
+    if (!selectedGroupData || !isSelectedGroupOwner || !member || member.user_id === session?.id) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Remove ${member.display_name || member.email || 'this member'} from this group?`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setRemovingMemberId(member.id)
+    setError('')
+    setSuccess('')
+
+    try {
+      const { error: deleteError } = await supabase
+        .from('group_members')
+        .delete()
+        .eq('id', member.id)
+
+      if (deleteError) {
+        throw deleteError
+      }
+
+      setGroupDetails((prevDetails) => {
+        const nextGroupDetails = prevDetails[selectedGroupData.id]
+        if (!nextGroupDetails) {
+          return prevDetails
+        }
+
+        return {
+          ...prevDetails,
+          [selectedGroupData.id]: {
+            ...nextGroupDetails,
+            members: nextGroupDetails.members.filter((groupMember) => groupMember.id !== member.id),
+          },
+        }
+      })
+      setSuccess('Member removed from group.')
+
+      const shouldRotateJoinCode = window.confirm(
+        'Member removed. Rotate the join code now so they cannot rejoin with the same code?',
+      )
+
+      if (shouldRotateJoinCode) {
+        await handleRotateJoinCode()
+      }
+    } catch (deleteError) {
+      setError(deleteError.message || 'Could not remove member.')
+    } finally {
+      setRemovingMemberId('')
+    }
+  }
+
   const selectedGroupData = selectedGroupId ? groups.find((g) => g.id === selectedGroupId) : null
   const selectedGroupDetails = selectedGroupId ? groupDetails[selectedGroupId] : null
   const isSelectedGroupOwner = selectedGroupData?.owner_id === session?.id
 
+  useEffect(() => {
+    if (!selectedGroupOpen || !selectedGroupData) {
+      setGroupEditName('')
+      return
+    }
+
+    setGroupEditName(selectedGroupData.name || '')
+  }, [selectedGroupOpen, selectedGroupData?.id, selectedGroupData?.name])
+
   if (loading) {
     return (
       <Container maxWidth="md" sx={{ py: 3 }}>
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <CircularProgress size={20} />
           <Typography>Loading groups...</Typography>
         </Stack>
@@ -495,10 +683,35 @@ function GroupsPage({ session, activeGroupId, activeGroup, onSelectGroup }) {
           <DialogTitle>{selectedGroupData?.name}</DialogTitle>
           <DialogContent sx={{ pt: 2 }}>
             <Stack spacing={2}>
+              {isSelectedGroupOwner ? (
+                <Box>
+                  <Typography variant="subtitle2">Edit group</Typography>
+                  <Stack spacing={1} sx={{ mt: 1 }}>
+                    <TextField
+                      label="Group name"
+                      value={groupEditName}
+                      onChange={(event) => setGroupEditName(event.target.value)}
+                      fullWidth
+                      size="small"
+                    />
+                    <Button
+                      variant="contained"
+                      onClick={handleSaveGroupDetails}
+                      disabled={groupEditSaving}
+                      sx={{ alignSelf: 'flex-start' }}
+                    >
+                      {groupEditSaving ? 'Saving...' : 'Save group changes'}
+                    </Button>
+                  </Stack>
+                </Box>
+              ) : null}
+
+              {isSelectedGroupOwner ? <Divider /> : null}
+
               {/* Join Code */}
               <Box>
                 <Typography variant="subtitle2">Join Code</Typography>
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <TextField
                     value={selectedGroupData?.join_code || ''}
                     fullWidth
@@ -512,6 +725,13 @@ function GroupsPage({ session, activeGroupId, activeGroup, onSelectGroup }) {
                   >
                     {copiedCode === selectedGroupData?.join_code ? '✓' : <ContentCopyIcon fontSize="small" />}
                   </IconButton>
+                  {isSelectedGroupOwner ? (
+                    <Tooltip title="Generate a new join code for this group">
+                      <IconButton size="small" onClick={handleRotateJoinCode} aria-label="Generate new join code">
+                        <LoopIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  ) : null}
                 </Stack>
               </Box>
 
@@ -522,14 +742,40 @@ function GroupsPage({ session, activeGroupId, activeGroup, onSelectGroup }) {
                 <Typography variant="subtitle2">Members ({selectedGroupDetails?.members?.length || 0})</Typography>
                 <Stack spacing={1} sx={{ mt: 1 }}>
                   {(selectedGroupDetails?.members || []).map((member) => (
-                    <Stack key={member.id} direction="row" spacing={1} alignItems="center">
-                      <PersonIcon fontSize="small" color="action" />
+                    <Stack key={member.id} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                      <Avatar src={member.avatar_url || undefined} sx={{ width: 28, height: 28 }}>
+                        {String(member.display_name || member.email || 'U').trim().charAt(0).toUpperCase()}
+                      </Avatar>
                       <Box sx={{ flex: 1 }}>
                         <Typography variant="body2">
-                          {member.role === 'owner' ? '👑' : ''} {`User ${member.user_id.slice(0, 8)}`}
+                          {member.role === 'owner' ? '👑' : ''}{' '}
+                          {member.display_name
+                            || member.email
+                            || (member.user_id === session?.id ? session?.email : null)
+                            || `User ${member.user_id.slice(0, 8)}`}
+                          {member.display_name && (member.email || (member.user_id === session?.id ? session?.email : null))
+                            ? ` (${member.email || session?.email})`
+                            : ''}
                           {member.role !== 'member' && ` (${member.role})`}
                         </Typography>
                       </Box>
+                      {isSelectedGroupOwner && member.role !== 'owner' && member.user_id !== session?.id ? (
+                        <Tooltip title="Remove member">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleRemoveMember(member)}
+                            disabled={removingMemberId === member.id}
+                            aria-label="Remove member"
+                          >
+                            {removingMemberId === member.id ? (
+                              <CircularProgress size={16} color="inherit" />
+                            ) : (
+                                <DeleteIcon fontSize="small" />
+                            )}
+                          </IconButton>
+                        </Tooltip>
+                      ) : null}
                     </Stack>
                   ))}
                 </Stack>

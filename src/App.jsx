@@ -37,6 +37,7 @@ function App() {
   const [authError, setAuthError] = useState('')
   const [activeGroupId, setActiveGroupId] = useState('')
   const [activeGroup, setActiveGroup] = useState(null)
+  const [profile, setProfile] = useState(null)
 
   const getActiveGroupStorageKey = (userId) => `relocate-active-group:${userId}`
 
@@ -100,6 +101,7 @@ function App() {
     if (!session?.user?.id) {
       setActiveGroupId('')
       setActiveGroup(null)
+      setProfile(null)
       return
     }
 
@@ -155,6 +157,42 @@ function App() {
     }
   }, [activeGroupId, session?.user?.id])
 
+  useEffect(() => {
+    let isActive = true
+
+    const loadProfile = async () => {
+      if (!session?.user?.id) {
+        if (isActive) {
+          setProfile(null)
+        }
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, email, display_name, avatar_url')
+        .eq('id', session.user.id)
+        .maybeSingle()
+
+      if (!isActive) {
+        return
+      }
+
+      if (error) {
+        setProfile(null)
+        return
+      }
+
+      setProfile(data || null)
+    }
+
+    loadProfile()
+
+    return () => {
+      isActive = false
+    }
+  }, [session?.user?.id])
+
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut()
     if (error) {
@@ -183,8 +221,10 @@ function App() {
   }
 
   const accountDisplayName =
-    session?.user?.user_metadata?.full_name
+    profile?.display_name
+    || session?.user?.user_metadata?.full_name
     || session?.user?.user_metadata?.name
+    || profile?.email
     || session?.user?.email
     || 'Unknown account'
   const accountInitial = String(accountDisplayName).trim().charAt(0).toUpperCase() || 'A'
@@ -227,7 +267,9 @@ function App() {
                 onClick={handleOpenAccountMenu}
                 size="small"
               >
-                <Avatar sx={{ width: 36, height: 36 }}>{accountInitial}</Avatar>
+                <Avatar src={profile?.avatar_url || undefined} sx={{ width: 36, height: 36 }}>
+                  {accountInitial}
+                </Avatar>
               </IconButton>
 
               <Menu

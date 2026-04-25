@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Alert from '@mui/material/Alert'
+import Avatar from '@mui/material/Avatar'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Container from '@mui/material/Container'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
+import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { Link as RouterLink } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
@@ -49,8 +51,169 @@ function SettingsPage() {
   const [busyAction, setBusyAction] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [profileLoading, setProfileLoading] = useState(true)
+  const [profileUserId, setProfileUserId] = useState('')
+  const [profileForm, setProfileForm] = useState({
+    email: '',
+    displayName: '',
+    avatarUrl: '',
+  })
 
   const isBusy = useMemo(() => Boolean(busyAction), [busyAction])
+
+  useEffect(() => {
+    let isActive = true
+
+    const loadProfile = async () => {
+      setProfileLoading(true)
+
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      if (userError) {
+        if (isActive) {
+          setError(userError.message || 'Could not load profile.')
+          setProfileLoading(false)
+        }
+        return
+      }
+
+      const user = userData?.user
+      if (!user) {
+        if (isActive) {
+          setProfileLoading(false)
+        }
+        return
+      }
+
+      setProfileUserId(user.id)
+
+      const { data: profileRow, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, email, display_name, avatar_url')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      if (profileError) {
+        if (isActive) {
+          setError(profileError.message || 'Could not load profile.')
+          setProfileLoading(false)
+        }
+        return
+      }
+
+      const nextProfile = {
+        email: profileRow?.email || user.email || '',
+        displayName: profileRow?.display_name || '',
+        avatarUrl: profileRow?.avatar_url || '',
+      }
+
+      if (!profileRow) {
+        const { error: insertError } = await supabase.from('profiles').insert({
+          id: user.id,
+          email: user.email || null,
+          display_name: null,
+          avatar_url: null,
+        })
+
+        if (insertError && insertError.code !== '23505') {
+          if (isActive) {
+            setError(insertError.message || 'Could not initialize profile.')
+          }
+        }
+      }
+
+      if (isActive) {
+        setProfileForm(nextProfile)
+        setProfileLoading(false)
+      }
+    }
+
+    loadProfile()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  const handleProfileFieldChange = (field) => (event) => {
+    setProfileForm((prev) => ({ ...prev, [field]: event.target.value }))
+  }
+
+  const handleProfileSave = async () => {
+    if (!profileUserId) {
+      setError('Could not determine current profile user.')
+      return
+    }
+
+    setBusyAction('profile-save')
+    setError('')
+    setSuccess('')
+
+    try {
+      const { error: saveError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: profileUserId,
+          email: profileForm.email.trim() || null,
+          display_name: profileForm.displayName.trim() || null,
+          avatar_url: profileForm.avatarUrl.trim() || null,
+        })
+
+      if (saveError) {
+        throw saveError
+      }
+
+      setSuccess('Profile updated.')
+    } catch (profileError) {
+      setError(profileError.message || 'Could not save profile.')
+    } finally {
+      setBusyAction('')
+    }
+  }
+
+  const handleProfilePhotoSelected = async (event) => {
+    const selectedFile = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!selectedFile) {
+      return
+    }
+
+    if (!selectedFile.type.startsWith('image/')) {
+      setError('Please select an image file for profile picture.')
+      return
+    }
+
+    if (!profileUserId) {
+      setError('Could not determine current profile user.')
+      return
+    }
+
+    setBusyAction('profile-photo')
+    setError('')
+    setSuccess('')
+
+    try {
+      const originalExtension = (selectedFile.name.split('.').pop() || 'jpg').toLowerCase()
+      const fileExtension = originalExtension.replace(/[^a-z0-9]/g, '') || 'jpg'
+      const filePath = `${profileUserId}/${Date.now()}.${fileExtension}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('profile-photos')
+        .upload(filePath, selectedFile, { upsert: true })
+
+      if (uploadError) {
+        throw new Error(`Profile photo upload failed: ${uploadError.message}`)
+      }
+
+      const { data: publicData } = supabase.storage.from('profile-photos').getPublicUrl(filePath)
+      setProfileForm((prev) => ({ ...prev, avatarUrl: publicData.publicUrl }))
+      setSuccess('Profile photo uploaded. Save profile to apply.')
+    } catch (photoError) {
+      setError(photoError.message || 'Could not upload profile photo.')
+    } finally {
+      setBusyAction('')
+    }
+  }
 
   const readBackupFile = async (file) => {
     const fileText = await file.text()
@@ -152,11 +315,19 @@ function SettingsPage() {
 
       const { data: groupMembers, error: membersError } = await supabase
         .from('group_members')
-        .select('id, group_id, user_id, role, invited_by, created_at')
+        .select('id, group_id, user_id, email, role, invited_by, created_at')
         .order('created_at', { ascending: true })
 
       if (membersError) {
         throw membersError
+      }
+
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, email, display_name, avatar_url, created_at, updated_at')
+
+      if (profilesError) {
+        throw profilesError
       }
 
       const payload = {
@@ -169,6 +340,7 @@ function SettingsPage() {
           box_tags: boxTags || [],
           groups: groupsData || [],
           group_members: groupMembers || [],
+          profiles: profilesData || [],
         },
       }
 
@@ -292,6 +464,15 @@ function SettingsPage() {
         'created_at',
       ]).filter((row) => row.id && row.name)
 
+      const normalizedProfiles = normalizeBackupRows(parsedBackup.data.profiles, [
+        'id',
+        'email',
+        'display_name',
+        'avatar_url',
+        'created_at',
+        'updated_at',
+      ]).filter((row) => row.id)
+
       if (normalizedGroups.length > 0) {
         const { error: insertGroupsError } = await supabase
           .from('groups')
@@ -307,6 +488,7 @@ function SettingsPage() {
         'id',
         'group_id',
         'user_id',
+        'email',
         'role',
         'invited_by',
         'created_at',
@@ -319,6 +501,16 @@ function SettingsPage() {
 
         if (insertMembersError) {
           throw insertMembersError
+        }
+      }
+
+      if (normalizedProfiles.length > 0) {
+        const { error: upsertProfilesError } = await supabase
+          .from('profiles')
+          .upsert(normalizedProfiles)
+
+        if (upsertProfilesError) {
+          throw upsertProfilesError
         }
       }
 
@@ -371,6 +563,85 @@ function SettingsPage() {
             <Typography color="text.secondary">
               Create a local backup file or restore your boxes from a previous backup.
             </Typography>
+          </Stack>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Stack spacing={1.5}>
+            <Box>
+              <Typography variant="h6" component="h2">
+                Profile
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Update your display name and profile picture used in group member lists.
+              </Typography>
+            </Box>
+
+            {profileLoading ? (
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <CircularProgress size={16} />
+                <Typography variant="body2">Loading profile...</Typography>
+              </Stack>
+            ) : (
+              <Stack spacing={1.25}>
+                <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                  <Avatar src={profileForm.avatarUrl || undefined} sx={{ width: 56, height: 56 }}>
+                    {String(profileForm.displayName || profileForm.email || 'U').trim().charAt(0).toUpperCase()}
+                  </Avatar>
+                  <Button
+                    component="label"
+                    variant="outlined"
+                    disabled={isBusy}
+                    startIcon={busyAction === 'profile-photo' ? <CircularProgress color="inherit" size={16} /> : null}
+                  >
+                    Upload photo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={handleProfilePhotoSelected}
+                    />
+                  </Button>
+                </Stack>
+
+                <TextField
+                  label="Email"
+                  value={profileForm.email}
+                  onChange={handleProfileFieldChange('email')}
+                  size="small"
+                  fullWidth
+                  disabled
+                />
+
+                <TextField
+                  label="Display name"
+                  value={profileForm.displayName}
+                  onChange={handleProfileFieldChange('displayName')}
+                  placeholder="How your name appears to others"
+                  size="small"
+                  fullWidth
+                />
+
+                <TextField
+                  label="Profile photo URL"
+                  value={profileForm.avatarUrl}
+                  onChange={handleProfileFieldChange('avatarUrl')}
+                  placeholder="https://..."
+                  size="small"
+                  fullWidth
+                />
+
+                <Button
+                  variant="contained"
+                  onClick={handleProfileSave}
+                  disabled={isBusy}
+                  sx={{ alignSelf: 'flex-start' }}
+                  startIcon={busyAction === 'profile-save' ? <CircularProgress color="inherit" size={16} /> : null}
+                >
+                  Save profile
+                </Button>
+              </Stack>
+            )}
           </Stack>
         </Paper>
 
